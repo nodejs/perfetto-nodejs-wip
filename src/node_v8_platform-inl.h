@@ -13,6 +13,10 @@
 #include "tracing/trace_event.h"
 #include "tracing/traced_value.h"
 
+#if HAVE_PERFETTO
+#include "node_perfetto_tracing.h"
+#endif
+
 namespace node {
 
 // Ensures that __metadata trace events are only emitted
@@ -82,8 +86,29 @@ struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
     tracing_agent_ = std::make_unique<tracing::Agent>();
+#if HAVE_PERFETTO
+    // Set up the Producer.
+    producer_ = std::shared_ptr<tracing::TracingControllerProducer>(
+        new tracing::TracingControllerProducer());
+    GetNodeTracing().ConnectProducer(producer_, "node");
+    node::tracing::TraceEventHelper::SetAgent(producer_->GetAgentBase());
+    v8::TracingController* controller =
+        producer_->GetAgentBase()->GetTracingController();
+    // Set up the Consumer.
+    // TODO(kjin): This might not belong here.
+    tracing::FileWriterConsumerOptions options;
+    options.log_file_pattern =
+        per_process::cli_options->trace_event_file_pattern.c_str();
+    options.buffer_size_kb = 4096;
+    options.file_size_kb = 8192;
+    options.file_write_period_ms = 2000;
+    consumer_ = std::shared_ptr<tracing::FileWriterConsumer>(
+        new tracing::FileWriterConsumer(options));
+    GetNodeTracing().ConnectConsumer(consumer_);
+#else
     node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
     v8::TracingController* controller = tracing_agent_->GetTracingController();
+#endif
     trace_state_observer_ =
         std::make_unique<NodeTraceStateObserver>(controller);
     controller->AddTraceStateObserver(trace_state_observer_.get());
@@ -117,12 +142,21 @@ struct V8Platform {
   }
 
   inline void StartTracingAgent() {
+#if HAVE_PERFETTO
+    if (!consumer_->IsEnabled()) {
+      std::vector<std::string> categories =
+          SplitString(per_process::cli_options->trace_event_categories, ',');
+      std::set<std::string> category_set(
+          std::make_move_iterator(categories.begin()),
+          std::make_move_iterator(categories.end()));
+      consumer_->Enable(category_set);
+    }
+#else
     // Attach a new NodeTraceWriter only if this function hasn't been called
     // before.
     if (tracing_file_writer_.IsDefaultHandle()) {
       std::vector<std::string> categories =
           SplitString(per_process::cli_options->trace_event_categories, ',');
-
       tracing_file_writer_ = tracing_agent_->AddClient(
           std::set<std::string>(std::make_move_iterator(categories.begin()),
                                 std::make_move_iterator(categories.end())),
@@ -131,15 +165,27 @@ struct V8Platform {
                   per_process::cli_options->trace_event_file_pattern)),
           tracing::Agent::kUseDefaultCategories);
     }
+#endif
   }
 
-  inline void StopTracingAgent() { tracing_file_writer_.reset(); }
+  inline void StopTracingAgent() {
+#if HAVE_PERFETTO
+    consumer_->Disable(std::set<std::string>());
+#else
+    tracing_file_writer_.reset();
+#endif
+  }
 
   inline tracing::AgentWriterHandle* GetTracingAgentWriter() {
     return &tracing_file_writer_;
   }
 
   inline NodePlatform* Platform() { return platform_; }
+
+#if HAVE_PERFETTO
+  std::shared_ptr<tracing::TracingControllerProducer> producer_;
+  std::shared_ptr<tracing::FileWriterConsumer> consumer_;
+#endif
 
   std::unique_ptr<NodeTraceStateObserver> trace_state_observer_;
   std::unique_ptr<tracing::Agent> tracing_agent_;

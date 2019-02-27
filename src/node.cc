@@ -52,6 +52,10 @@
 #include "inspector_io.h"
 #endif
 
+#if HAVE_PERFETTO
+#include "node_perfetto_tracing.h"
+#endif
+
 #if defined HAVE_DTRACE || defined HAVE_ETW
 #include "node_dtrace.h"
 #endif
@@ -803,6 +807,10 @@ inline std::unique_ptr<Environment> CreateMainEnvironment(
                                       Environment::kOwnsInspector));
   env->InitializeLibuv(per_process::v8_is_profiling);
   env->ProcessCliArgs(args, exec_args);
+
+#if HAVE_PERFETTO
+  GetNodeTracing().Initialize();
+#endif
 
 #if HAVE_INSPECTOR && NODE_USE_V8_PLATFORM
   CHECK(!env->inspector_agent()->IsListening());
