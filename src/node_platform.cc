@@ -14,7 +14,6 @@ using v8::Local;
 using v8::Object;
 using v8::Platform;
 using v8::Task;
-using node::tracing::TracingController;
 
 namespace {
 
@@ -297,11 +296,11 @@ void PerIsolatePlatformData::Shutdown() {
 }
 
 NodePlatform::NodePlatform(int thread_pool_size,
-                           TracingController* tracing_controller) {
+                           v8::TracingController* tracing_controller) {
   if (tracing_controller) {
     tracing_controller_ = tracing_controller;
   } else {
-    tracing_controller_ = new TracingController();
+    tracing_controller_ = new v8::TracingController();
   }
   worker_thread_task_runner_ =
       std::make_shared<WorkerThreadsTaskRunner>(thread_pool_size);
@@ -469,7 +468,7 @@ double NodePlatform::CurrentClockTimeMillis() {
   return SystemClockTimeMillis();
 }
 
-TracingController* NodePlatform::GetTracingController() {
+v8::TracingController* NodePlatform::GetTracingController() {
   CHECK_NOT_NULL(tracing_controller_);
   return tracing_controller_;
 }

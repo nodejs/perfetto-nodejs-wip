@@ -8,6 +8,7 @@
 #include "node_platform.h"
 #include "v8-platform.h"
 #include "trace_event_common.h"
+#include "tracing/agent.h"
 #include <atomic>
 
 // This header file defines implementation details of how the trace macros in
@@ -312,9 +313,9 @@ const uint64_t kNoId = 0;
 
 class TraceEventHelper {
  public:
-  static TracingController* GetTracingController();
-  static Agent* GetAgent();
-  static void SetAgent(Agent* agent);
+  static v8::TracingController* GetTracingController();
+  static AgentBase* GetAgent();
+  static void SetAgent(AgentBase* agent);
 };
 
 // TraceID encapsulates an ID that can either be an integer or pointer. Pointers
@@ -494,20 +495,9 @@ static V8_INLINE void AddMetadataEventImpl(
     const uint8_t* category_group_enabled, const char* name, int32_t num_args,
     const char** arg_names, const uint8_t* arg_types,
     const uint64_t* arg_values, unsigned int flags) {
-  std::unique_ptr<v8::ConvertableToTraceFormat> arg_convertibles[2];
-  if (num_args > 0 && arg_types[0] == TRACE_VALUE_TYPE_CONVERTABLE) {
-    arg_convertibles[0].reset(reinterpret_cast<v8::ConvertableToTraceFormat*>(
-        static_cast<intptr_t>(arg_values[0])));
-  }
-  if (num_args > 1 && arg_types[1] == TRACE_VALUE_TYPE_CONVERTABLE) {
-    arg_convertibles[1].reset(reinterpret_cast<v8::ConvertableToTraceFormat*>(
-        static_cast<intptr_t>(arg_values[1])));
-  }
-  node::tracing::TracingController* controller =
-      node::tracing::TraceEventHelper::GetTracingController();
-  return controller->AddMetadataEvent(
-      category_group_enabled, name, num_args, arg_names, arg_types, arg_values,
-      arg_convertibles, flags);
+  AgentBase* agent = node::tracing::TraceEventHelper::GetAgent();
+  return agent->AddMetadataEvent(category_group_enabled, name, num_args,
+                                 arg_names, arg_types, arg_values, flags);
 }
 
 // Define SetTraceValue for each allowed type. It stores the type and
