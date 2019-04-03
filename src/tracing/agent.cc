@@ -207,11 +207,6 @@ void Agent::AppendTraceEvent(TraceObject* trace_event) {
     id_writer.second->AppendTraceEvent(trace_event);
 }
 
-void Agent::AddMetadataEvent(std::unique_ptr<TraceObject> event) {
-  Mutex::ScopedLock lock(metadata_events_mutex_);
-  metadata_events_.push_back(std::move(event));
-}
-
 void Agent::Flush(bool blocking) {
   {
     Mutex::ScopedLock lock(metadata_events_mutex_);
@@ -223,27 +218,35 @@ void Agent::Flush(bool blocking) {
     id_writer.second->Flush(blocking);
 }
 
-void TracingController::AddMetadataEvent(
+void Agent::AddMetadataEvent(
     const unsigned char* category_group_enabled,
     const char* name,
     int num_args,
     const char** arg_names,
     const unsigned char* arg_types,
     const uint64_t* arg_values,
-    std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
     unsigned int flags) {
+  std::unique_ptr<v8::ConvertableToTraceFormat> arg_convertibles[2];
+  if (num_args > 0 && arg_types[0] == TRACE_VALUE_TYPE_CONVERTABLE) {
+    arg_convertibles[0].reset(reinterpret_cast<v8::ConvertableToTraceFormat*>(
+        static_cast<intptr_t>(arg_values[0])));
+  }
+  if (num_args > 1 && arg_types[1] == TRACE_VALUE_TYPE_CONVERTABLE) {
+    arg_convertibles[1].reset(reinterpret_cast<v8::ConvertableToTraceFormat*>(
+        static_cast<intptr_t>(arg_values[1])));
+  }
   std::unique_ptr<TraceObject> trace_event(new TraceObject);
   trace_event->Initialize(
       TRACE_EVENT_PHASE_METADATA, category_group_enabled, name,
       node::tracing::kGlobalScope,  // scope
       node::tracing::kNoId,         // id
       node::tracing::kNoId,         // bind_id
-      num_args, arg_names, arg_types, arg_values, convertable_values,
+      num_args, arg_names, arg_types, arg_values, arg_convertibles,
       TRACE_EVENT_FLAG_NONE,
-      CurrentTimestampMicroseconds(),
-      CurrentCpuTimestampMicroseconds());
-  node::tracing::TraceEventHelper::GetAgent()->AddMetadataEvent(
-      std::move(trace_event));
+      tracing_controller_->CurrentTimestampMicroseconds(),
+      tracing_controller_->CurrentCpuTimestampMicroseconds());
+  Mutex::ScopedLock lock(metadata_events_mutex_);
+  metadata_events_.push_back(std::move(trace_event));
 }
 
 }  // namespace tracing

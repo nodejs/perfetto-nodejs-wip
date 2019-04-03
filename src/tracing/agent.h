@@ -17,6 +17,7 @@ namespace tracing {
 
 using v8::platform::tracing::TraceConfig;
 using v8::platform::tracing::TraceObject;
+using DefaultTracingController = v8::platform::tracing::TracingController;
 
 class Agent;
 
@@ -28,22 +29,31 @@ class AsyncTraceWriter {
   virtual void InitializeOnThread(uv_loop_t* loop) {}
 };
 
-class TracingController : public v8::platform::tracing::TracingController {
+class AgentBase {
  public:
-  TracingController() : v8::platform::tracing::TracingController() {}
-
-  int64_t CurrentTimestampMicroseconds() override {
-    return uv_hrtime() / 1000;
-  }
-  void AddMetadataEvent(
+  virtual v8::TracingController* GetTracingController() = 0;
+  virtual void AddMetadataEvent(
       const unsigned char* category_group_enabled,
       const char* name,
       int num_args,
       const char** arg_names,
       const unsigned char* arg_types,
       const uint64_t* arg_values,
-      std::unique_ptr<v8::ConvertableToTraceFormat>* convertable_values,
-      unsigned int flags);
+      unsigned int flags) = 0;
+  virtual ~AgentBase() {}
+};
+
+class TracingController : public DefaultTracingController {
+ public:
+  TracingController() : v8::platform::tracing::TracingController() {}
+
+  int64_t CurrentTimestampMicroseconds() override {
+    return uv_hrtime() / 1000;
+  }
+
+  int64_t CurrentCpuTimestampMicroseconds() override {
+    return DefaultTracingController::CurrentCpuTimestampMicroseconds();
+  }
 };
 
 class AgentWriterHandle {
@@ -77,12 +87,12 @@ class AgentWriterHandle {
   friend class Agent;
 };
 
-class Agent {
+class Agent: public AgentBase {
  public:
   Agent();
   ~Agent();
 
-  TracingController* GetTracingController() {
+  v8::TracingController* GetTracingController() override {
     TracingController* controller = tracing_controller_.get();
     CHECK_NOT_NULL(controller);
     return controller;
@@ -108,7 +118,14 @@ class Agent {
   // Writes to all writers registered through AddClient().
   void AppendTraceEvent(TraceObject* trace_event);
 
-  void AddMetadataEvent(std::unique_ptr<TraceObject> event);
+  void AddMetadataEvent(
+    const unsigned char* category_group_enabled,
+    const char* name,
+    int num_args,
+    const char** arg_names,
+    const unsigned char* arg_types,
+    const uint64_t* arg_values,
+    unsigned int flags) override;
   // Flushes all writers registered through AddClient().
   void Flush(bool blocking);
 

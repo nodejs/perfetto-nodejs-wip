@@ -285,8 +285,7 @@ MultiIsolatePlatform* GetMainThreadMultiIsolatePlatform() {
 }
 
 MultiIsolatePlatform* CreatePlatform(
-    int thread_pool_size,
-    node::tracing::TracingController* tracing_controller) {
+    int thread_pool_size, v8::TracingController* tracing_controller) {
   return new NodePlatform(thread_pool_size, tracing_controller);
 }
 

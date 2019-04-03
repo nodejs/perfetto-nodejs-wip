@@ -3,17 +3,17 @@
 namespace node {
 namespace tracing {
 
-Agent* g_agent = nullptr;
+AgentBase* g_agent;
 
-void TraceEventHelper::SetAgent(Agent* agent) {
+void TraceEventHelper::SetAgent(AgentBase* agent) {
   g_agent = agent;
 }
 
-Agent* TraceEventHelper::GetAgent() {
+AgentBase* TraceEventHelper::GetAgent() {
   return g_agent;
 }
 
-TracingController* TraceEventHelper::GetTracingController() {
+v8::TracingController* TraceEventHelper::GetTracingController() {
   return g_agent->GetTracingController();
 }
 
