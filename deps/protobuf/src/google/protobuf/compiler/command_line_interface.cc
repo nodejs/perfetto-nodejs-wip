@@ -438,6 +438,50 @@ bool CommandLineInterface::GeneratorContextImpl::WriteAllToDisk(
     }
     string filename = prefix + relative_filename;
 
+    // Check whether an existing file exists, and if so, skip overwriting it
+    // if its contents are identical to the pending data.
+    {
+      int file_descriptor;
+      do {
+        file_descriptor = open(filename.c_str(), O_RDONLY | O_BINARY, 0444);
+      } while (file_descriptor < 0 && errno == EINTR);
+
+      if (file_descriptor < 0) {
+        if (errno != ENOENT) {
+          // Couldn't open file, and it's not because the file doesn't exist.
+          int error = errno;
+          std::cerr << filename << ": open: " << strerror(error) << std::endl;
+          return false;
+        }
+      } else {
+        // File exists.
+        char buffer[4096];
+        size_t bytes_compared = 0;
+        int bytes_read;
+        while ((bytes_read = read(file_descriptor, buffer, 4096)) > 0) {
+          // Compare in-place.
+          if (strncmp(data + bytes_compared, buffer, bytes_read) != 0)
+            break;
+          bytes_compared += bytes_read;
+        }
+        if (bytes_read == -1) {
+          int error = errno;
+          std::cerr << filename << ": read: " << strerror(error) << std::endl;
+          return false;
+        }
+
+        if (close(file_descriptor != 0)) {
+          int error = errno;
+          std::cerr << filename << ": close: " << strerror(error) << std::endl;
+          return false;
+        }
+        if (bytes_compared == size) {
+          // Contents are the same. Skip the write.
+          continue;
+        }
+      }
+    }
+
     // Create the output file.
     int file_descriptor;
     do {
@@ -447,7 +491,7 @@ bool CommandLineInterface::GeneratorContextImpl::WriteAllToDisk(
 
     if (file_descriptor < 0) {
       int error = errno;
-      std::cerr << filename << ": " << strerror(error);
+      std::cerr << filename << ": open: " << strerror(error) << std::endl;
       return false;
     }
 
@@ -471,7 +515,7 @@ bool CommandLineInterface::GeneratorContextImpl::WriteAllToDisk(
 
         if (write_result < 0) {
           int error = errno;
-          std::cerr << filename << ": write: " << strerror(error);
+          std::cerr << filename << ": write: " << strerror(error) << std::endl;
         } else {
           std::cerr << filename << ": write() returned zero?" << std::endl;
         }
@@ -484,7 +528,7 @@ bool CommandLineInterface::GeneratorContextImpl::WriteAllToDisk(
 
     if (close(file_descriptor) != 0) {
       int error = errno;
-      std::cerr << filename << ": close: " << strerror(error);
+      std::cerr << filename << ": close: " << strerror(error) << std::endl;
       return false;
     }
   }
