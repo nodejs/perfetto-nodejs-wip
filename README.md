@@ -16,13 +16,4 @@ Integrating Perfetto in Node means replacing our current trace events implementa
 
 ## Building
 
-`kjin-wip` is the current development branch and includes a buildable GYP configuration for Perfetto. Currently, Perfetto's dependencies (protobuf, gtest) must be fetched manually. In the near future protobuf will be pulled in as a direct dependency, and the GYP config will be amended to depend on Node's existing gtest dependency.
-
-To fetch dependencies:
-
-```sh
-$ cd deps/perfetto
-$ ./tools/install-build-deps
-```
-
-After this, Node can be built as it is usually, using `make` at the root directory.
+Just like the main Node project, this project is buildable with `make`. This has only been tested on macOS.
