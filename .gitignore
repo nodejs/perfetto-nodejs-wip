@@ -127,4 +127,8 @@ deps/uv/docs/src/guide/
 # ignore VS compiler output unhandled by V8's .gitignore
 deps/v8/third_party/eu-strip/
 
+# rely on .gitignore files in deps/perfetto and deps/protobuf
+!deps/perfetto/**
+!deps/protobuf/**
+
 .DS_Store
