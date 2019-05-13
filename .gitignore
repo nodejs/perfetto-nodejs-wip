@@ -130,5 +130,10 @@ _UpgradeReport_Files/
 # Keep last to avoid being excluded
 *.pyc
 __pycache__
+
+# rely on .gitignore files in deps/perfetto and deps/protobuf
+!deps/perfetto/**
+!deps/protobuf/**
+
 .DS_Store
 *~
