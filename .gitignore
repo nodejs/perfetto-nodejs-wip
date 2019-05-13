@@ -125,9 +125,13 @@ _UpgradeReport_Files/
 /deps/uv/docs/src/guide/
 # Ignore dependencies fetched by deps/v8/tools/node/fetch_deps.py
 /deps/.cipd
+# Rely on .gitignore files in deps/perfetto and deps/protobuf
+!deps/perfetto/**
+!deps/protobuf/**
 
 # === Global Rules ===
 # Keep last to avoid being excluded
 *.pyc
 __pycache__
+
 .DS_Store
