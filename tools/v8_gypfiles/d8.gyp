@@ -24,15 +24,15 @@
         '<(SHARED_INTERMEDIATE_DIR)',
       ],
       'sources': [
-        '../src/async-hooks-wrapper.cc',
-        '../src/async-hooks-wrapper.h',
-        '../src/d8-console.cc',
-        '../src/d8-console.h',
-        '../src/d8-js.cc',
-        '../src/d8-platforms.cc',
-        '../src/d8-platforms.h',
-        '../src/d8.cc',
-        '../src/d8.h',
+        '../src/d8/async-hooks-wrapper.cc',
+        '../src/d8/async-hooks-wrapper.h',
+        '../src/d8/d8-console.cc',
+        '../src/d8/d8-console.h',
+        '../src/d8/d8-js.cc',
+        '../src/d8/d8-platforms.cc',
+        '../src/d8/d8-platforms.h',
+        '../src/d8/d8.cc',
+        '../src/d8/d8.h',
       ],
       'conditions': [
         [ 'want_separate_host_toolset==1', {
@@ -44,10 +44,10 @@
         ['(OS=="linux" or OS=="mac" or OS=="freebsd" or OS=="netbsd" \
            or OS=="openbsd" or OS=="solaris" or OS=="android" \
            or OS=="qnx" or OS=="aix")', {
-             'sources': [ '../src/d8-posix.cc', ]
+             'sources': [ '../src/d8/d8-posix.cc', ]
            }],
         [ 'OS=="win"', {
-          'sources': [ '../src/d8-windows.cc', ]
+          'sources': [ '../src/d8/d8-windows.cc', ]
         }],
         [ 'component!="shared_library"', {
           'conditions': [
