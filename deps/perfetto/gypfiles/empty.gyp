@@ -11,47 +11,53 @@
         "target",
         "host"
       ],
-      "target_conditions": [
+      "conditions": [
         [
-          "_toolset==\"target\"",
+          "OS==\"mac\"",
           {
-            "actions": [
-              {
-                "action_name": "gen_empty_cc_action",
-                "inputs": [],
-                "outputs": [
-                  "<(SHARED_INTERMEDIATE_DIR)/gen/empty.cc"
-                ],
-                "action": [
-                  "touch",
-                  "-a",
-                  "<(SHARED_INTERMEDIATE_DIR)/gen/empty.cc"
-                ]
-              }
-            ]
-          }
-        ],
-        [
-          "_toolset==\"host\"",
-          {
-            "actions": [
-              {
-                "action_name": "gen_empty_cc_action",
-                "inputs": [],
-                "outputs": [
-                  "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/empty.cc"
-                ],
-                "action": [
-                  "touch",
-                  "-a",
-                  "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/empty.cc"
-                ]
-              }
+            "target_conditions": [
+              [
+                "_toolset==\"target\"",
+                {
+                  "actions": [
+                    {
+                      "action_name": "gen_empty_cc_action",
+                      "inputs": [],
+                      "outputs": [
+                        "<(SHARED_INTERMEDIATE_DIR)/gen/empty.cc"
+                      ],
+                      "action": [
+                        "touch",
+                        "-a",
+                        "<(SHARED_INTERMEDIATE_DIR)/gen/empty.cc"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              [
+                "_toolset==\"host\"",
+                {
+                  "actions": [
+                    {
+                      "action_name": "gen_empty_cc_action",
+                      "inputs": [],
+                      "outputs": [
+                        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/empty.cc"
+                      ],
+                      "action": [
+                        "touch",
+                        "-a",
+                        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/empty.cc"
+                      ]
+                    }
+                  ]
+                }
+              ]
             ]
           }
         ]
-      ],
-      "dependencies": []
+      ]
     }
   ]
 }
