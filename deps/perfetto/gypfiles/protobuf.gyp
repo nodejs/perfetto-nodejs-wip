@@ -11,89 +11,39 @@
         "target",
         "host"
       ],
-      "target_conditions": [
-        [
-          "_toolset==\"target\"",
-          {
-            "include_dirs": [
-              "<(root_relative_to_gypfile)/../protobuf/src"
-            ],
-            "defines": [
-              "HAVE_PTHREAD=1",
-              "GOOGLE_PROTOBUF_NO_RTTI",
-              "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-              "GOOGLE_PROTOBUF_NO_RTTI",
-              "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
-            ],
-            "sources": [
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arena.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arenastring.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/extension_set.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/generated_message_util.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/coded_stream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/message_lite.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/repeated_field.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_gcc.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_msvc.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/bytestream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/common.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/int128.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/once.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/status.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/statusor.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringpiece.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringprintf.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/structurally_valid.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/strutil.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/time.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wire_format_lite.cc"
-            ]
-          }
-        ],
-        [
-          "_toolset==\"host\"",
-          {
-            "include_dirs": [
-              "<(root_relative_to_gypfile)/../protobuf/src"
-            ],
-            "defines": [
-              "HAVE_PTHREAD=1",
-              "GOOGLE_PROTOBUF_NO_RTTI",
-              "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-              "GOOGLE_PROTOBUF_NO_RTTI",
-              "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
-            ],
-            "sources": [
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arena.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arenastring.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/extension_set.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/generated_message_util.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/coded_stream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/message_lite.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/repeated_field.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_gcc.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_msvc.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/bytestream.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/common.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/int128.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/once.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/status.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/statusor.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringpiece.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringprintf.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/structurally_valid.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/strutil.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/time.cc",
-              "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wire_format_lite.cc"
-            ]
-          }
-        ]
+      "include_dirs": [
+        "<(root_relative_to_gypfile)/../protobuf/src"
       ],
-      "dependencies": []
+      "defines": [
+        "HAVE_PTHREAD=1",
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arena.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arenastring.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/extension_set.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/generated_message_util.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/coded_stream.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/message_lite.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/repeated_field.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_gcc.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/atomicops_internals_x86_msvc.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/bytestream.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/common.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/int128.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/once.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/status.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/statusor.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringpiece.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/stringprintf.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/structurally_valid.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/strutil.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/time.cc",
+        "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wire_format_lite.cc"
+      ]
     },
     {
       "target_name": "buildtools_protobuf_lite",
@@ -112,9 +62,6 @@
       "toolsets": [
         "host"
       ],
-      "dependencies": [
-        "buildtools_protoc_lib#host"
-      ],
       "include_dirs": [
         "<(root_relative_to_gypfile)/",
         "<(root_relative_to_gypfile)/include/",
@@ -128,6 +75,9 @@
       ],
       "sources": [
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/compiler/main.cc"
+      ],
+      "dependencies": [
+        "buildtools_protoc_lib#host"
       ]
     },
     {
@@ -162,16 +112,11 @@
       "toolsets": [
         "host"
       ],
-      "dependencies": [
-        "buildtools_protobuf_full#host"
-      ],
       "include_dirs": [
         "<(root_relative_to_gypfile)/../protobuf/src"
       ],
       "defines": [
         "HAVE_PTHREAD=1",
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "GOOGLE_PROTOBUF_NO_RTTI",
         "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
       ],
@@ -267,6 +212,9 @@
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/compiler/ruby/ruby_generator.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/compiler/subprocess.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/compiler/zip_writer.cc"
+      ],
+      "dependencies": [
+        "buildtools_protobuf_full#host"
       ]
     },
     {
@@ -285,16 +233,11 @@
       "toolsets": [
         "host"
       ],
-      "dependencies": [
-        "buildtools_protobuf_lite#host"
-      ],
       "include_dirs": [
         "<(root_relative_to_gypfile)/../protobuf/src"
       ],
       "defines": [
         "HAVE_PTHREAD=1",
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "GOOGLE_PROTOBUF_NO_RTTI",
         "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
       ],
@@ -352,6 +295,9 @@
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/util/type_resolver_util.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wire_format.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wrappers.pb.cc"
+      ],
+      "dependencies": [
+        "buildtools_protobuf_lite#host"
       ]
     },
     {
