@@ -21,6 +21,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -120,6 +121,14 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
   return true;
 }
 
+void ClearUmask() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  umask(0000);
+#endif
+}
+
 }  // namespace
 
 // Temporary directory for DropBox traces. Note that this is automatically
@@ -167,6 +176,8 @@ Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
 }
 
 int PerfettoCmd::Main(int argc, char** argv) {
+  ClearUmask();  // make sure that file creation is not affected by umask
+
   enum LongOption {
     OPT_ALERT_ID = 1000,
     OPT_CONFIG_ID,
@@ -518,9 +529,10 @@ int PerfettoCmd::Main(int argc, char** argv) {
       trace_config_->guardrail_overrides().max_upload_per_day_bytes();
 #endif
 
-  if ((trace_config_->duration_ms() == 0) && args.is_dropbox &&
-      !args.ignore_guardrails) {
-    PERFETTO_ELOG("Can't trace indefinitely when uploading via Dropbox.");
+  if (args.is_dropbox && !args.ignore_guardrails &&
+      (trace_config_->duration_ms() == 0 &&
+       trace_config_->trigger_config().trigger_timeout_ms() == 0)) {
+    PERFETTO_ELOG("Can't trace indefinitely when tracing to Dropbox.");
     return 1;
   }
 
