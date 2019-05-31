@@ -12,33 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("public") {
-  deps = [
-    ":common",
-    "../../gn:default_deps",
-    "../base",
-    "../tracing",
-  ]
-  public_deps = [
-    "../../include/perfetto/public",
-  ]
-  sources = [
-    "data_source.cc",
-    "internal/in_process_tracing_backend.cc",
-    "internal/in_process_tracing_backend.h",
-    "internal/tracing_muxer_impl.cc",
-    "platform.cc",
-    "tracing.cc",
-    "virtual_destructors.cc",
-  ]
+import("../../gn/perfetto.gni")
 
-  # TODO there should be an option to compile this out. This pulls IPC
-  # dependencies and bloats binary size.
-  deps += [ "../tracing:ipc" ]
-  sources += [
-    "internal/system_tracing_backend.cc",
-    "internal/system_tracing_backend.h",
-  ]
+if (perfetto_build_with_ipc_layer) {
+  source_set("public") {
+    deps = [
+      ":common",
+      "../../gn:default_deps",
+      "../base",
+      "../tracing",
+    ]
+    public_deps = [
+      "../../include/perfetto/public",
+    ]
+    sources = [
+      "data_source.cc",
+      "internal/in_process_tracing_backend.cc",
+      "internal/in_process_tracing_backend.h",
+      "internal/tracing_muxer_impl.cc",
+      "platform.cc",
+      "tracing.cc",
+      "virtual_destructors.cc",
+    ]
+
+    # TODO there should be an option to compile this out. This pulls IPC
+    # dependencies and bloats binary size.
+    deps += [ "../tracing:ipc" ]
+    sources += [
+      "internal/system_tracing_backend.cc",
+      "internal/system_tracing_backend.h",
+    ]
+  }
 }
 
 # Separate target because the embedder might not want this (e.g. on Windows).
@@ -66,4 +70,24 @@ source_set("common") {
   sources = [
     "trace_writer_base.cc",
   ]
+}
+
+if (!perfetto_build_with_embedder) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      ":platform_posix",
+      ":public",
+      "../../gn:default_deps",
+      "../../gn:gtest_deps",
+      "../../protos/perfetto/trace:lite",
+      "../base",
+
+      # TODO(primiano): move DataSourceConfig to /public/ and remove this.
+      "../../include/perfetto/tracing/core",
+    ]
+    sources = [
+      "api_integrationtest.cc",
+    ]
+  }
 }

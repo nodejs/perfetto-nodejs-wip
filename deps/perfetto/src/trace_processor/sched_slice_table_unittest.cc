@@ -22,8 +22,8 @@
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace perfetto {
 namespace trace_processor {
@@ -56,7 +56,10 @@ class SchedSliceTableTest : public ::testing::Test {
     stmt_.reset(stmt);
   }
 
-  ~SchedSliceTableTest() override { context_.storage->ResetStorage(); }
+  ~SchedSliceTableTest() override {
+    context_.args_tracker->Flush();
+    context_.storage->ResetStorage();
+  }
 
  protected:
   TraceProcessorContext context_;

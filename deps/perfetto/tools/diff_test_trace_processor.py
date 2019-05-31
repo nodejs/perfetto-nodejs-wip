@@ -62,7 +62,13 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
-  cmd = [trace_processor_path, '--run-metrics', metric, gen_trace_path]
+  cmd = [
+    trace_processor_path,
+    '--run-metrics',
+    metric,
+    '--metrics-output=binary',
+    gen_trace_path,
+  ]
   actual = subprocess.check_output(cmd)
 
   # Expected will be in text proto format and we'll need to parse it to a real
@@ -143,15 +149,16 @@ def main():
     trace_descriptor_path = args.trace_descriptor
   else:
     out_path = os.path.dirname(args.trace_processor)
-    trace_protos_path = os.path.join(out_path, "gen", "protos", "trace")
+    trace_protos_path = os.path.join(
+        out_path, "gen", "protos", "trace")
     trace_descriptor_path = os.path.join(trace_protos_path, "trace.descriptor")
 
   if args.metrics_descriptor:
     metrics_descriptor_path = args.metrics_descriptor
   else:
     out_path = os.path.dirname(args.trace_processor)
-    metrics_protos_path = os.path.join(out_path, "gen", "protos", "perfetto",
-                                       "metrics")
+    metrics_protos_path = os.path.join(
+        out_path, "gen", "protos", "perfetto", "metrics")
     metrics_descriptor_path = os.path.join(metrics_protos_path,
                                            "metrics.descriptor")
 

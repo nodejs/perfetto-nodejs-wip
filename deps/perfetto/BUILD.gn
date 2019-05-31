@@ -72,6 +72,10 @@ group("all") {
         "tools/proto_to_cpp",
         "tools/trace_to_text",
         "tools/trace_to_text:trace_to_text_lite_host($host_toolchain)",
+
+        # The diff testing framework depends on these descriptors.
+        "protos/perfetto/metrics:descriptor",
+        "protos/perfetto/trace:descriptor",
       ]
       if (is_linux || is_android) {
         deps += [ "tools/skippy" ]
@@ -82,6 +86,13 @@ group("all") {
         deps += [ ":fuzzers" ]
       }
     }
+  }
+
+  # TODO(khokhlov): Remove this once the chrome dep is added. This is a
+  # temporary target to make sure that we don't regress trace processor support
+  # for the Windows build.
+  if (build_with_chromium) {
+    deps += [ "src/trace_processor:lib" ]
   }
 }
 
@@ -108,6 +119,7 @@ if (perfetto_build_standalone) {
     deps = [
       "src/trace_processor:trace_processor_shell",
     ]
+    testonly = true  # We need this for proto full.
   }
 }
 
@@ -151,6 +163,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     deps = [
       "gn:default_deps",
       "gn:gtest_main",
+      "src/public:integrationtests",
       "src/traced/probes/ftrace:integrationtests",
       "test:end_to_end_integrationtests",
     ]
@@ -159,7 +172,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     }
 
     # TODO(fmayer): Fix in process daemons.
-    if (should_build_heapprofd && is_android && !start_daemons_for_testing) {
+    if (should_build_heapprofd) {
       deps += [ "src/profiling/memory:end_to_end_tests" ]
     }
   }

@@ -16,7 +16,7 @@
 
 #include "perfetto/tracing/core/startup_trace_writer.h"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "perfetto/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/tracing_service.h"
@@ -299,7 +299,7 @@ TEST_P(StartupTraceWriterTest, CreateAndBindViaRegistry) {
   EXPECT_EQ(2u, GetUnboundWriterCount(*registry));
 
   // Return |writer2|. It should be kept alive until the registry is bound.
-  registry->ReturnUnboundTraceWriter(std::move(writer2));
+  StartupTraceWriter::ReturnToRegistry(std::move(writer2));
 
   {
     // Begin a write by opening a TracePacket on |writer1|.
@@ -324,6 +324,8 @@ TEST_P(StartupTraceWriterTest, CreateAndBindViaRegistry) {
   };
   task_runner_->PostDelayedTask(task, 1);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
+
+  StartupTraceWriter::ReturnToRegistry(std::move(writer1));
 }
 
 }  // namespace

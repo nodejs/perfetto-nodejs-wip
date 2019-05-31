@@ -35,28 +35,6 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-struct SystraceTracePoint {
-  char phase;
-  uint32_t tgid;
-
-  // For phase = 'B' and phase = 'C' only.
-  base::StringView name;
-
-  // For phase = 'C' only.
-  double value;
-};
-
-inline bool operator==(const SystraceTracePoint& x,
-                       const SystraceTracePoint& y) {
-  return std::tie(x.phase, x.tgid, x.name, x.value) ==
-         std::tie(y.phase, y.tgid, y.name, y.value);
-}
-
-enum class SystraceParseResult { kFailure = 0, kUnsupported, kSuccess };
-
-SystraceParseResult ParseSystraceTracePoint(base::StringView,
-                                            SystraceTracePoint* out);
-
 class ProtoTraceParser : public TraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
@@ -114,6 +92,7 @@ class ProtoTraceParser : public TraceParser {
                        int64_t tts,
                        ProtoIncrementalState::PacketSequenceState*,
                        ConstBytes);
+  void ParseChromeBenchmarkMetadata(ConstBytes);
 
  private:
   TraceProcessorContext* context_;
@@ -175,7 +154,6 @@ class ProtoTraceParser : public TraceParser {
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
   std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
-
 };
 
 }  // namespace trace_processor

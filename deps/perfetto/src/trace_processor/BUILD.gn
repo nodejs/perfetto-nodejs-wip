@@ -16,21 +16,23 @@ import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/wasm.gni")
 
-wasm_lib("trace_processor_wasm") {
-  name = "trace_processor"
-  sources = [
-    "wasm_bridge.cc",
-  ]
+if (perfetto_build_standalone) {
+  wasm_lib("trace_processor_wasm") {
+    name = "trace_processor"
+    sources = [
+      "wasm_bridge.cc",
+    ]
 
-  # All the deps below are implicitly xxx($wasm_toolchain) because of the
-  # outer "is_wasm" block.
-  deps = [
-    ":lib",
-    "../../buildtools:sqlite",
-    "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../protos/perfetto/trace_processor:lite",
-  ]
+    # All the deps below are implicitly xxx($wasm_toolchain) because of the
+    # outer "is_wasm" block.
+    deps = [
+      ":lib",
+      "../../buildtools:sqlite",
+      "../../gn:default_deps",
+      "../../include/perfetto/base",
+      "../../protos/perfetto/trace_processor:lite",
+    ]
+  }
 }
 
 # The library which eases processing of Perfetto traces by exposing reading
@@ -84,6 +86,9 @@ source_set("lib") {
     "heap_profile_tracker.h",
     "instants_table.cc",
     "instants_table.h",
+    "metadata.h",
+    "metadata_table.cc",
+    "metadata_table.h",
     "null_term_string_view.h",
     "process_table.cc",
     "process_table.h",
@@ -133,6 +138,9 @@ source_set("lib") {
     "syscalls_aarch64.h",
     "syscalls_armeabi.h",
     "syscalls_x86_64.h",
+    "systrace_trace_parser.cc",
+    "systrace_trace_parser.h",
+    "systrace_utils.h",
     "table.cc",
     "table.h",
     "thread_table.cc",
@@ -155,7 +163,7 @@ source_set("lib") {
   ]
 
   deps = [
-    "../../buildtools:sqlite",
+    ":sqlite",
     "../../gn:default_deps",
     "../../include/perfetto/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
@@ -164,6 +172,7 @@ source_set("lib") {
     "../../protos/perfetto/metrics/android:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
+    "../../protos/perfetto/trace/chrome:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../../protos/perfetto/trace/power:zero",
@@ -195,10 +204,13 @@ source_set("lib") {
 
 if (current_toolchain == host_toolchain) {
   executable("trace_processor_shell_host") {
+    testonly = true  # We need this for proto full.
     deps = [
       ":lib",
       "../../gn:default_deps",
+      "../../gn:protobuf_full_deps",
       "../base",
+      "metrics:lib",
     ]
     if (perfetto_build_standalone) {
       deps += [
@@ -206,6 +218,7 @@ if (current_toolchain == host_toolchain) {
         "../../gn/standalone:gen_git_revision",
       ]
     }
+
     sources = [
       "trace_processor_shell.cc",
     ]
@@ -213,6 +226,7 @@ if (current_toolchain == host_toolchain) {
 }
 
 copy("trace_processor_shell") {
+  testonly = true  # We need this for proto full.
   host_out_dir_ = get_label_info(":trace_processor_shell_host($host_toolchain)",
                                  "root_out_dir")
   deps = [
@@ -235,6 +249,7 @@ source_set("unittests") {
     "filtered_row_index_unittest.cc",
     "ftrace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
+    "metadata_table_unittest.cc",
     "null_term_string_view_unittest.cc",
     "process_table_unittest.cc",
     "process_tracker_unittest.cc",
@@ -246,17 +261,19 @@ source_set("unittests") {
     "sqlite3_str_split_unittest.cc",
     "string_pool_unittest.cc",
     "syscall_tracker_unittest.cc",
+    "systrace_utils_unittest.cc",
     "thread_table_unittest.cc",
     "trace_processor_impl_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
     ":lib",
-    "../../buildtools:sqlite",
+    ":sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/chrome:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../../protos/perfetto/trace/ps:zero",
@@ -275,6 +292,16 @@ source_set("unittests") {
   }
 }
 
+# Indirection target to allow modifying the path to the SQLite header.
+source_set("sqlite") {
+  sources = [
+    "sqlite.h",
+  ]
+  public_deps = [
+    "../../gn:sqlite",
+  ]
+}
+
 source_set("integrationtests") {
   testonly = true
   sources = [
@@ -282,7 +309,7 @@ source_set("integrationtests") {
   ]
   deps = [
     ":lib",
-    "../../buildtools:sqlite",
+    ":sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace:lite",
