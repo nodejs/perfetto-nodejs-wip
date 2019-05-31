@@ -13,7 +13,8 @@
         
       ],
       'dependencies': [
-        '_libperfetto'
+        'src_public_public',
+        'src_public_platform_posix'
       ],
       'type': 'none'
     }
