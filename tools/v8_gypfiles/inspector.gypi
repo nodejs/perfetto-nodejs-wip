@@ -96,6 +96,7 @@
   },
   'include_dirs': [
     '<(inspector_generated_output_root)',
+    '<(inspector_protocol_path)',
   ],
   'actions': [
     {
