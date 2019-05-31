@@ -13,6 +13,8 @@
 #include "tracing/trace_event.h"
 #include "tracing/traced_value.h"
 
+#include "tracing/perfetto_agent.h"
+
 namespace node {
 
 // Ensures that __metadata trace events are only emitted
@@ -82,8 +84,11 @@ struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
     tracing_agent_ = std::make_unique<tracing::Agent>();
-    node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
-    v8::TracingController* controller = tracing_agent_->GetTracingController();
+    // node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
+    // v8::TracingController* controller = tracing_agent_->GetTracingController();
+    tracing_perfetto_agent_ = std::make_unique<tracing::PerfettoAgent>();
+    node::tracing::TraceEventHelper::SetAgent(tracing_perfetto_agent_.get());
+    v8::TracingController* controller = tracing_perfetto_agent_->GetTracingController();
     trace_state_observer_ =
         std::make_unique<NodeTraceStateObserver>(controller);
     controller->AddTraceStateObserver(trace_state_observer_.get());
@@ -143,6 +148,7 @@ struct V8Platform {
 
   std::unique_ptr<NodeTraceStateObserver> trace_state_observer_;
   std::unique_ptr<tracing::Agent> tracing_agent_;
+  std::unique_ptr<tracing::PerfettoAgent> tracing_perfetto_agent_;
   tracing::AgentWriterHandle tracing_file_writer_;
   NodePlatform* platform_;
 #else   // !NODE_USE_V8_PLATFORM
