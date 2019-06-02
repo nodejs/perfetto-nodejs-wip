@@ -942,7 +942,8 @@ void Init(int* argc,
   }
 
   if (per_process::cli_options->print_v8_help) {
-    V8::SetFlagsFromString("--help", 6);  // Doesn't return.
+    // Doesn't return.
+    V8::SetFlagsFromString("--help", static_cast<size_t>(6));
     UNREACHABLE();
   }
 
@@ -1000,7 +1001,8 @@ InitializationResult InitializeOncePerProcess(int argc, char** argv) {
   }
 
   if (per_process::cli_options->print_v8_help) {
-    V8::SetFlagsFromString("--help", 6);  // Doesn't return.
+    // Doesn't return.
+    V8::SetFlagsFromString("--help", static_cast<size_t>(6));
     UNREACHABLE();
   }
 
