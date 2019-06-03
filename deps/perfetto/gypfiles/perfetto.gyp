@@ -13,8 +13,8 @@
         
       ],
       'dependencies': [
-        'src_public_public',
-        'src_public_platform_posix'
+        'src_tracing_client_api',
+        'src_tracing_platform_posix'
       ],
       'type': 'none'
     }
