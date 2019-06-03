@@ -29,7 +29,7 @@ if (perfetto_build_standalone) {
       ":lib",
       "../../buildtools:sqlite",
       "../../gn:default_deps",
-      "../../include/perfetto/base",
+      "../../include/perfetto/ext/base",
       "../../protos/perfetto/trace_processor:lite",
     ]
   }
@@ -38,6 +38,7 @@ if (perfetto_build_standalone) {
 # The library which eases processing of Perfetto traces by exposing reading
 # friendly APIs.
 static_library("trace_processor") {
+  complete_static_lib = true
   deps = [
     ":lib",
   ]
@@ -165,7 +166,7 @@ source_set("lib") {
   deps = [
     ":sqlite",
     "../../gn:default_deps",
-    "../../include/perfetto/traced:sys_stats_counters",
+    "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
     "../../protos/perfetto/metrics:zero",
@@ -202,7 +203,7 @@ source_set("lib") {
   }
 }
 
-if (current_toolchain == host_toolchain) {
+if (!perfetto_build_with_embedder && current_toolchain == host_toolchain) {
   executable("trace_processor_shell_host") {
     testonly = true  # We need this for proto full.
     deps = [
@@ -225,19 +226,22 @@ if (current_toolchain == host_toolchain) {
   }
 }
 
-copy("trace_processor_shell") {
-  testonly = true  # We need this for proto full.
-  host_out_dir_ = get_label_info(":trace_processor_shell_host($host_toolchain)",
-                                 "root_out_dir")
-  deps = [
-    ":trace_processor_shell_host($host_toolchain)",
-  ]
-  sources = [
-    "${host_out_dir_}/trace_processor_shell_host",
-  ]
-  outputs = [
-    "${root_out_dir}/trace_processor_shell",
-  ]
+if (!perfetto_build_with_embedder) {
+  copy("trace_processor_shell") {
+    testonly = true  # We need this for proto full.
+    host_out_dir_ =
+        get_label_info(":trace_processor_shell_host($host_toolchain)",
+                       "root_out_dir")
+    deps = [
+      ":trace_processor_shell_host($host_toolchain)",
+    ]
+    sources = [
+      "${host_out_dir_}/trace_processor_shell_host",
+    ]
+    outputs = [
+      "${root_out_dir}/trace_processor_shell",
+    ]
+  }
 }
 
 source_set("unittests") {
@@ -329,8 +333,8 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   ]
   deps = [
     ":lib",
-    "../../../../gn:default_deps",
     "../../buildtools:sqlite",
+    "../../gn:default_deps",
     "../../gn:default_deps",
     "../../gn:gtest_deps",
     "../../protos/perfetto/trace:lite",
