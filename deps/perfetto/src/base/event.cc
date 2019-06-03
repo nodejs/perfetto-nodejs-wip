@@ -17,9 +17,10 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "perfetto/base/event.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/pipe.h"
+#include "perfetto/ext/base/event.h"
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/utils.h"
 
 #if PERFETTO_USE_EVENTFD()
 #include <sys/eventfd.h>
