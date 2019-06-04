@@ -159,7 +159,7 @@ void TracingController::StopTracing() {
   if (!recording_.compare_exchange_strong(expected, false)) {
     return;
   }
-  DCHECK(trace_buffer_);
+  // DCHECK(trace_buffer_);
   UpdateCategoryGroupEnabledFlags();
   std::unordered_set<v8::TracingController::TraceStateObserver*> observers_copy;
   {
@@ -169,10 +169,10 @@ void TracingController::StopTracing() {
   for (auto o : observers_copy) {
     o->OnTraceDisabled();
   }
-  {
-    base::MutexGuard lock(mutex_.get());
-    trace_buffer_->Flush();
-  }
+  // {
+  //   base::MutexGuard lock(mutex_.get());
+  //   trace_buffer_->Flush();
+  // }
 }
 
 void TracingController::UpdateCategoryGroupEnabledFlag(size_t category_index) {
