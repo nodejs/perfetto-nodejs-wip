@@ -72,6 +72,7 @@
       'dependencies': [
         'tools/v8_gypfiles/v8.gyp:v8_maybe_snapshot',
         'tools/v8_gypfiles/v8.gyp:v8_libplatform',
+        'tools/v8_gypfiles/v8.gyp:v8_crash_keys',
       ],
     }],
     [ 'node_use_v8_platform=="true"', {

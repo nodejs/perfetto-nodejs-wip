@@ -34,6 +34,7 @@
       "<(V8_ROOT)/src/builtins/array-unshift.tq",
       "<(V8_ROOT)/src/builtins/array.tq",
       "<(V8_ROOT)/src/builtins/base.tq",
+      "<(V8_ROOT)/src/builtins/bigint.tq",
       "<(V8_ROOT)/src/builtins/boolean.tq",
       "<(V8_ROOT)/src/builtins/collections.tq",
       "<(V8_ROOT)/src/builtins/data-view.tq",
@@ -808,6 +809,16 @@
       ],
     },  # v8_base_without_compiler
     {
+      'target_name': 'v8_crash_keys',
+      'type': 'static_library',
+      'sources': ['<(V8_ROOT)/src/diagnostics/crash-key-noop.cc'], # This is fine since we don't build with Chromium
+      'conditions': [
+        ['want_separate_host_toolset', {
+          'toolsets': ['host', 'target'],
+        }],
+      ],
+    },  # v8_crash_keys
+    {
       'target_name': 'v8_base',
       'type': 'none',
       'conditions': [
@@ -818,6 +829,7 @@
       'dependencies': [
         'v8_base_without_compiler',
         'v8_compiler',
+        'v8_crash_keys',
       ],
     },  # v8_base
     {
