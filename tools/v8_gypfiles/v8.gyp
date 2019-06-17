@@ -50,10 +50,12 @@
       "<(V8_ROOT)/src/builtins/proxy-get-property.tq",
       "<(V8_ROOT)/src/builtins/proxy-has-property.tq",
       "<(V8_ROOT)/src/builtins/proxy-is-extensible.tq",
+      "<(V8_ROOT)/src/builtins/proxy-prevent-extensions.tq",
       "<(V8_ROOT)/src/builtins/proxy-revocable.tq",
       "<(V8_ROOT)/src/builtins/proxy-revoke.tq",
       "<(V8_ROOT)/src/builtins/proxy-set-property.tq",
       "<(V8_ROOT)/src/builtins/proxy.tq",
+      "<(V8_ROOT)/src/builtins/reflect.tq",
       "<(V8_ROOT)/src/builtins/regexp-replace.tq",
       "<(V8_ROOT)/src/builtins/regexp.tq",
       "<(V8_ROOT)/src/builtins/string.tq",
@@ -76,6 +78,7 @@
       "<(V8_ROOT)/src/builtins/typed-array-some.tq",
       "<(V8_ROOT)/src/builtins/typed-array-subarray.tq",
       "<(V8_ROOT)/src/builtins/typed-array.tq",
+      "<(V8_ROOT)/test/torque/test-torque.tq",
       "<(V8_ROOT)/third_party/v8/builtins/array-sort.tq",
     ],
     'torque_output_root': '<(SHARED_INTERMEDIATE_DIR)/torque-output-root',
@@ -809,16 +812,6 @@
       ],
     },  # v8_base_without_compiler
     {
-      'target_name': 'v8_crash_keys',
-      'type': 'static_library',
-      'sources': ['<(V8_ROOT)/src/diagnostics/crash-key-noop.cc'], # This is fine since we don't build with Chromium
-      'conditions': [
-        ['want_separate_host_toolset', {
-          'toolsets': ['host', 'target'],
-        }],
-      ],
-    },  # v8_crash_keys
-    {
       'target_name': 'v8_base',
       'type': 'none',
       'conditions': [
@@ -829,7 +822,6 @@
       'dependencies': [
         'v8_base_without_compiler',
         'v8_compiler',
-        'v8_crash_keys',
       ],
     },  # v8_base
     {
