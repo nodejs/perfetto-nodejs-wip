@@ -92,7 +92,8 @@
       # Flat merge `third_party/inspector_protocol:encoding`
       '<(inspector_protocol_path)/encoding/encoding.cc',
       '<(inspector_protocol_path)/encoding/encoding.h',
-    ]
+    ],
+    'v8_inspector_js_protocol': '<(V8_ROOT)/include/js_protocol.pdl',
   },
   'include_dirs': [
     '<(inspector_generated_output_root)',
@@ -102,7 +103,7 @@
     {
       'action_name': 'protocol_compatibility',
       'inputs': [
-        '<(inspector_path)/js_protocol.pdl',
+        '<(v8_inspector_js_protocol)',
       ],
       'outputs': [
         '<@(inspector_generated_output_root)/src/js_protocol.stamp',
@@ -118,7 +119,7 @@
     {
       'action_name': 'protocol_generated_sources',
       'inputs': [
-        '<(inspector_path)/js_protocol.pdl',
+        '<(v8_inspector_js_protocol)',
         '<(inspector_path)/inspector_protocol_config.json',
         '<@(inspector_protocol_files)',
       ],
