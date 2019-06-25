@@ -65,6 +65,7 @@
             '<(torque_output_root)/torque-generated/exported-macros-assembler-tq.cc',
             '<(torque_output_root)/torque-generated/exported-macros-assembler-tq.h',
             '<(torque_output_root)/torque-generated/csa-types-tq.h',
+            '<(torque_output_root)/torque-generated/instance-types-tq.h',
             '<@(torque_outputs)',
           ],
           'action': [
@@ -744,6 +745,16 @@
       ],
     },  # v8_base_without_compiler
     {
+      'target_name': 'v8_crash_keys',
+      'type': 'static_library',
+      'sources': ['<(V8_ROOT)/src/diagnostics/crash-key-noop.cc'], # This is fine since we don't build with Chromium
+      'conditions': [
+        ['want_separate_host_toolset', {
+          'toolsets': ['host', 'target'],
+        }],
+      ],
+    },  # v8_crash_keys
+    {
       'target_name': 'v8_base',
       'type': 'none',
       'conditions': [
@@ -754,6 +765,7 @@
       'dependencies': [
         'v8_base_without_compiler',
         'v8_compiler',
+        'v8_crash_keys'
       ],
     },  # v8_base
     {
