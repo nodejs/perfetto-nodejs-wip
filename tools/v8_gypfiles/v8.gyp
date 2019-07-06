@@ -709,6 +709,12 @@
           ],
         }],
         ['v8_enable_i18n_support', {
+          'dependencies': [
+            'run_gen-regexp-special-case',
+          ],
+          'sources': [
+            '<(SHARED_INTERMEDIATE_DIR)/src/regexp/special-case.cc',
+          ],
           'conditions': [
             ['icu_use_data_file_flag', {
               'defines': ['ICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_FILE'],
@@ -1320,6 +1326,47 @@
         "<(V8_ROOT)/src/torque/ls/torque-language-server.cc",
       ],
     },  # torque-language-server
+    {
+      'target_name': 'gen-regexp-special-case',
+      'type': 'executable',
+      'dependencies': [
+        'v8_libbase',
+        # "build/win:default_exe_manifest",
+        'v8_maybe_icu',
+      ],
+      'conditions': [
+        ['want_separate_host_toolset', {
+          'toolsets': ['host'],
+        }],
+      ],
+      'sources': [
+        "<(V8_ROOT)/src/regexp/gen-regexp-special-case.cc",
+      ],
+    },  # gen-regexp-special-case
+    {
+      'target_name': 'run_gen-regexp-special-case',
+      'type': 'none',
+      'dependencies': [
+        'gen-regexp-special-case',
+      ],
+      'actions': [
+        {
+          'action_name': 'run_gen-regexp-special-case_action',
+          'inputs': [
+            '<(PRODUCT_DIR)/<(EXECUTABLE_PREFIX)gen-regexp-special-case<(EXECUTABLE_SUFFIX)',
+          ],
+          'outputs': [
+            '<(SHARED_INTERMEDIATE_DIR)/src/regexp/special-case.cc',
+          ],
+          'action': [
+            'python',
+            '<(V8_ROOT)/tools/run.py',
+            '<@(_inputs)',
+            '<@(_outputs)',
+          ],
+        },
+      ],
+    },  # run_gen-regexp-special-case
 
     ###############################################################################
     # Public targets
