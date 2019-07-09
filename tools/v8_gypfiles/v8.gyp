@@ -751,16 +751,6 @@
       ],
     },  # v8_base_without_compiler
     {
-      'target_name': 'v8_crash_keys',
-      'type': 'static_library',
-      'sources': ['<(V8_ROOT)/src/diagnostics/crash-key-noop.cc'], # This is fine since we don't build with Chromium
-      'conditions': [
-        ['want_separate_host_toolset', {
-          'toolsets': ['host', 'target'],
-        }],
-      ],
-    },  # v8_crash_keys
-    {
       'target_name': 'v8_base',
       'type': 'none',
       'conditions': [
@@ -771,7 +761,6 @@
       'dependencies': [
         'v8_base_without_compiler',
         'v8_compiler',
-        'v8_crash_keys'
       ],
     },  # v8_base
     {
@@ -1133,16 +1122,7 @@
           'sources': [
             '<(V8_ROOT)/src/libplatform/tracing/json-trace-event-listener.cc',
             '<(V8_ROOT)/src/libplatform/tracing/json-trace-event-listener.h',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-consumer.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-consumer.h',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-producer.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-producer.h',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-shared-memory.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-shared-memory.h',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-tasks.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-tasks.h',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-tracing-controller.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/perfetto-tracing-controller.h',
+            '<(V8_ROOT)/src/libplatform/tracing/trace-event-listener.cc',
             '<(V8_ROOT)/src/libplatform/tracing/trace-event-listener.h',
           ],
           'dependencies': [
