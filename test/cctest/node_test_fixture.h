@@ -79,7 +79,8 @@ class NodeTestFixture : public ::testing::Test {
     }
 
     tracing_agent = std::make_unique<node::tracing::Agent>();
-    node::tracing::TraceEventHelper::SetAgent(tracing_agent.get());
+    // TODO(kjin): Figure out what to do here
+    // node::tracing::TraceEventHelper::SetAgent(tracing_agent.get());
     CHECK_EQ(0, uv_loop_init(&current_loop));
     platform.reset(static_cast<node::NodePlatform*>(
           node::InitializeV8Platform(4)));

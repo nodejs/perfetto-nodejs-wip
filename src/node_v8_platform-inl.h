@@ -14,13 +14,13 @@
 #include "tracing/traced_value.h"
 
 #include "tracing/perfetto_agent.h"
+#include "tracing/perfetto_trace_writer.h"
 
 namespace node {
 
 // Ensures that __metadata trace events are only emitted
 // when tracing is enabled.
-class NodeTraceStateObserver
-    : public v8::TracingController::TraceStateObserver {
+class NodeTraceStateObserver : public tracing::TraceStateObserver {
  public:
   inline void OnTraceEnabled() override {
     char name_buffer[512];
@@ -63,7 +63,7 @@ class NodeTraceStateObserver
         "__metadata", "node", "process", std::move(trace_process));
 
     // This only runs the first time tracing is enabled
-    controller_->RemoveTraceStateObserver(this);
+    tracing::PerfettoAgent::GetAgent().RemoveTraceStateObserver(this);
   }
 
   inline void OnTraceDisabled() override {
@@ -72,33 +72,24 @@ class NodeTraceStateObserver
     UNREACHABLE();
   }
 
-  explicit NodeTraceStateObserver(v8::TracingController* controller)
-      : controller_(controller) {}
   ~NodeTraceStateObserver() override {}
-
- private:
-  v8::TracingController* controller_;
 };
 
 struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
     tracing_agent_ = std::make_unique<tracing::Agent>();
-    // node::tracing::TraceEventHelper::SetAgent(tracing_agent_.get());
-    // v8::TracingController* controller = tracing_agent_->GetTracingController();
-    tracing_perfetto_agent_ = std::make_unique<tracing::PerfettoAgent>();
-    node::tracing::TraceEventHelper::SetAgent(tracing_perfetto_agent_.get());
-    v8::TracingController* controller = tracing_perfetto_agent_->GetTracingController();
-    trace_state_observer_ =
-        std::make_unique<NodeTraceStateObserver>(controller);
-    controller->AddTraceStateObserver(trace_state_observer_.get());
+    tracing::PerfettoAgent::GetAgent().Initialize();
+    trace_state_observer_ = std::make_unique<NodeTraceStateObserver>();
+    tracing::PerfettoAgent::GetAgent().AddTraceStateObserver(trace_state_observer_.get());
     tracing_file_writer_ = tracing_agent_->DefaultHandle();
     // Only start the tracing agent if we enabled any tracing categories.
     if (!per_process::cli_options->trace_event_categories.empty()) {
       StartTracingAgent();
     }
     // Tracing must be initialized before platform threads are created.
-    platform_ = new NodePlatform(thread_pool_size, controller);
+    platform_ = new NodePlatform(thread_pool_size,
+        tracing::PerfettoAgent::GetAgent().GetTracingController());
     v8::V8::InitializePlatform(platform_);
   }
 
@@ -136,10 +127,25 @@ struct V8Platform {
                   per_process::cli_options->trace_event_file_pattern)),
           tracing::Agent::kUseDefaultCategories);
     }
+    tracing_perfetto_writer_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(std::make_unique<tracing::FileTraceConsumer>());
+    // tracing_perfetto_writer_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(
+    //     std::make_unique<tracing::LegacyTraceConsumer>(
+    //         std::unique_ptr<tracing::AsyncTraceWriter>(
+    //             new tracing::NodeTraceWriter(per_process::cli_options->trace_event_file_pattern))));
+    tracing::TracingOptions trace_options;
+    trace_options.write_period_ms = 2000;
+    trace_options.trace_duration_ms = 60000;
+    tracing::PerfettoAgent::GetAgent().Start(trace_options);
   }
 
-  inline void StopTracingAgent() { tracing_file_writer_.reset(); }
+  inline void StopTracingAgent() {
+    tracing_file_writer_.reset();
+    tracing::PerfettoAgent::GetAgent().Stop();
+    // TODO(kjin): Should this be removed asynchronously?
+    tracing_perfetto_writer_.RemoveTraceConsumer();
+  }
 
+  // [old tracing system]
   inline tracing::AgentWriterHandle* GetTracingAgentWriter() {
     return &tracing_file_writer_;
   }
@@ -147,9 +153,11 @@ struct V8Platform {
   inline NodePlatform* Platform() { return platform_; }
 
   std::unique_ptr<NodeTraceStateObserver> trace_state_observer_;
+  // [old tracing system]
   std::unique_ptr<tracing::Agent> tracing_agent_;
-  std::unique_ptr<tracing::PerfettoAgent> tracing_perfetto_agent_;
+  // [old tracing system]
   tracing::AgentWriterHandle tracing_file_writer_;
+  tracing::TraceConsumerHandle tracing_perfetto_writer_;
   NodePlatform* platform_;
 #else   // !NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {}

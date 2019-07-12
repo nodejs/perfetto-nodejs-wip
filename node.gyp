@@ -484,6 +484,7 @@
         'src/tracing/node_trace_buffer.cc',
         'src/tracing/node_trace_writer.cc',
         'src/tracing/perfetto_agent.cc',
+        'src/tracing/perfetto_trace_writer.cc',
         'src/tracing/trace_event.cc',
         'src/tracing/traced_value.cc',
         'src/tty_wrap.cc',
@@ -564,6 +565,7 @@
         'src/tracing/node_trace_buffer.h',
         'src/tracing/node_trace_writer.h',
         'src/tracing/perfetto_agent.h',
+        'src/tracing/perfetto_trace_writer.h',
         'src/tracing/trace_event.h',
         'src/tracing/trace_event_common.h',
         'src/tracing/traced_value.h',
@@ -591,6 +593,7 @@
         # Warn when using deprecated V8 APIs.
         'V8_DEPRECATION_WARNINGS=1',
         'NODE_OPENSSL_SYSTEM_CERT_PATH="<(openssl_system_ca_path)"',
+        'GOOGLE_PROTOBUF_NO_RTTI',
       ],
 
       # - "C4244: conversion from 'type1' to 'type2', possible loss of data"
