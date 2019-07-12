@@ -1,8 +1,10 @@
 #include "tracing/perfetto_agent.h"
 #include "perfetto/tracing/data_source.h"
-#include "perfetto/ext/tracing/core/data_source_descriptor.h"
-#include "perfetto/ext/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/trace/chrome/chrome_trace_event.pbzero.h"
+#include "perfetto/trace/trace.pb.h"
 
 class NodeDataSource : public perfetto::DataSource<NodeDataSource> {
 };
@@ -87,29 +89,42 @@ class PerfettoTracingController : public v8::TracingController {
       trace_event->set_thread_duration(0);
       trace_event->Finalize();
     });
+    return 0;
   }
 
   const uint8_t* GetCategoryGroupEnabled(const char* name) override {
     return category_manager_->GetCategoryGroupEnabled(name);
   }
 
-
  private:
   std::unique_ptr<CategoryManager> category_manager_;
 };
 
-// class NodePerfettoPlatform : public perfetto::Platform {
-//   ThreadLocalObject* GetOrCreateThreadLocalObject() override {}
+TraceConsumerHandle& TraceConsumerHandle::operator=(TraceConsumerHandle&& other) {
+  RemoveTraceConsumer();
+  agent_ = other.agent_;
+  trace_writer_ = other.trace_writer_;
+  other.agent_ = nullptr;
+  other.trace_writer_ = nullptr;
+  return *this;
+}
 
-//   std::unique_ptr<base::TaskRunner> CreateTaskRunner(
-//     const CreateTaskRunnerArgs& args) override {
-    
-//   }
+TraceConsumerHandle::TraceConsumerHandle(TraceConsumerHandle&& other) {
+  *this = std::move(other);
+}
 
-//   std::string GetCurrentProcessName() override { return "node"; }
-// };
+void TraceConsumerHandle::RemoveTraceConsumer() {
+  if (agent_) {
+    bool erased = !!agent_->consumers_.erase(trace_writer_);
+    if (erased && agent_->consumers_.size() == 0) {
+      agent_->Stop();
+    }
+  }
+}
 
-PerfettoAgent::PerfettoAgent() {
+PerfettoAgent::PerfettoAgent() {}
+
+void PerfettoAgent::Initialize() {
   // Initialize the Perfetto backend.
   perfetto::TracingInitArgs tracing_init_args;
   tracing_init_args.backends = perfetto::BackendType::kInProcessBackend;
@@ -124,26 +139,18 @@ PerfettoAgent::PerfettoAgent() {
 
   tracing_controller_.reset(new PerfettoTracingController());
 
-  // Create a configuration for a tracing session, and start it.
-
-  perfetto::TraceConfig config;
-  config.add_buffers()->set_size_kb(4096);
-  {
-    auto c = config.add_data_sources();
-    auto c2 = c->mutable_config();
-    c2->set_name("node_trace_events");
-  }
-  config.set_write_into_file(true);
-  uint64_t file_size_bytes = 4096;
-  file_size_bytes <<= 10;
-  config.set_max_file_size_bytes(file_size_bytes);
-  config.set_file_write_period_ms(2000);
   // Note: Setup doesn't accept an FD. We need to start and write our own
   // loop to consume trace data.
 
-  tracing_session_ = perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend); 
-  tracing_session_->Setup(config);
-  tracing_session_->Start();
+  tracing_session_ = perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend);
+
+  uv_loop_init(&tracing_loop_);
+  uv_timer_init(&tracing_loop_, &timer_);
+  timer_.data = this;
+}
+
+PerfettoAgent::~PerfettoAgent() {
+  // TODO
 }
 
 v8::TracingController* PerfettoAgent::GetTracingController() {
@@ -160,6 +167,100 @@ void PerfettoAgent::AddMetadataEvent(
     unsigned int flags) {
       // Not implemented yet.
     }
+
+TraceConsumerHandle PerfettoAgent::AddTraceConsumer(std::unique_ptr<TraceConsumer> consumer) {
+  auto trace_consumer = consumer.release();
+  consumers_.insert(trace_consumer);
+  if (tracing_state_ == internal::STARTED) {
+    trace_consumer->OnTraceStarted();
+  }
+  NODE_PERFETTO_DEBUG("Trace Writer Added");
+  return TraceConsumerHandle(this, trace_consumer);
+}
+
+void PerfettoAgent::AddTraceStateObserver(TraceStateObserver* observer) {
+  observers_.insert(observer);
+}
+
+void PerfettoAgent::RemoveTraceStateObserver(TraceStateObserver* observer) {
+  observers_.erase(observer);
+}
+
+void PerfettoAgent::Start(TracingOptions options) {
+  if (tracing_state_ != internal::STOPPED) return;
+
+  options_ = options;
+
+  perfetto::TraceConfig config;
+  if (options.trace_duration_ms != 0) {
+    config.set_duration_ms(options.trace_duration_ms);
+  }
+  config.set_write_into_file(false);
+  config.add_buffers()->set_size_kb(4096);
+  {
+    auto c = config.add_data_sources();
+    auto c2 = c->mutable_config();
+    c2->set_name("node_trace_events");
+  }
+  tracing_session_->Setup(config);
+  tracing_session_->SetOnStopCallback([=]() {
+    tracing_state_ = internal::STOPPING;
+  });
+  tracing_session_->Start();
+
+  uv_timer_start(&timer_, [](uv_timer_t* handle) {
+    PerfettoAgent* agent = static_cast<PerfettoAgent*>(handle->data);
+    if (agent->tracing_state_ == internal::STOPPED) {
+      return;
+    }
+    std::vector<char> trace_data = agent->tracing_session_->ReadTraceBlocking();
+    for (auto itr = agent->consumers_.begin(); itr != agent->consumers_.end(); itr++) {
+      auto trace_writer = *itr;
+      trace_writer->OnTrace(trace_data);
+    }
+    if (agent->tracing_state_ == internal::STOPPING) {
+      uv_timer_stop(handle);
+      agent->tracing_state_ = internal::STOPPED;
+      NODE_PERFETTO_DEBUG("Tracing Stopped");
+      for (auto itr = agent->consumers_.begin(); itr != agent->consumers_.end(); itr++) {
+        (*itr)->OnTraceStopped();
+      }
+    }
+  }, 0, options_.write_period_ms);
+  uv_thread_create(&thread_, [](void* arg) {
+    PerfettoAgent* agent = static_cast<PerfettoAgent*>(arg);
+    uv_run(&agent->tracing_loop_, UV_RUN_DEFAULT);
+  }, this);
+  
+  tracing_state_ = internal::STARTED;
+
+  NODE_PERFETTO_DEBUG("Tracing Started");
+
+  for (auto itr = observers_.begin(); false; itr++) {
+    (*itr)->OnTraceEnabled();
+  }
+
+  for (auto itr = consumers_.begin(); itr != consumers_.end(); itr++) {
+    (*itr)->OnTraceStarted();
+  }
+}
+
+void PerfettoAgent::Stop() {
+  if (tracing_state_ != internal::STARTED) return;
+  tracing_state_ = internal::STOPPING;
+
+  NODE_PERFETTO_DEBUG("Tracing Stopping");
+  tracing_session_->Stop();
+}
+
+PerfettoAgent& PerfettoAgent::GetAgent() {
+  static PerfettoAgent g_agent_;
+  return g_agent_;
+}
+
+v8::TracingController* PerfettoAgent::DataSource() {
+  return GetAgent().GetTracingController();
+}
 
 }
 }

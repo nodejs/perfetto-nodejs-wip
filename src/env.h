@@ -36,6 +36,7 @@
 #include "node_main_instance.h"
 #include "node_options.h"
 #include "req_wrap.h"
+#include "tracing/perfetto_agent.h"
 #include "util.h"
 #include "uv.h"
 #include "v8.h"
@@ -777,8 +778,7 @@ class TickInfo : public MemoryRetainer {
   AliasedUint8Array fields_;
 };
 
-class TrackingTraceStateObserver :
-    public v8::TracingController::TraceStateObserver {
+class TrackingTraceStateObserver : public tracing::TraceStateObserver {
  public:
   explicit TrackingTraceStateObserver(Environment* env) : env_(env) {}
 
