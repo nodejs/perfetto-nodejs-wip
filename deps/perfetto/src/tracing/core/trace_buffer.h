@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/thread_annotations.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
@@ -262,7 +263,7 @@ class TraceBuffer {
   // | ChunkRecord 1 | Chunk payload 1  || ChunkRecord 2 | Chunk payload 2 | ...
   // +---------------+------------------++---------------+-----------------+
   // Most of the ChunkRecord fields are copied from SharedMemoryABI::ChunkHeader
-  // (the chunk header used in the the shared memory buffers).
+  // (the chunk header used in the shared memory buffers).
   // A ChunkRecord can be a special "padding" record. In this case its payload
   // should be ignored and the record should be just skipped.
   //

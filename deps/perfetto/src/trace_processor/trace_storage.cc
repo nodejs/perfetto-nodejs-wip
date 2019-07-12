@@ -45,9 +45,11 @@ std::vector<const char*> CreateRefTypeStringMap() {
   map[RefType::kRefNoRef] = nullptr;
   map[RefType::kRefUtid] = "utid";
   map[RefType::kRefCpuId] = "cpu";
+  map[RefType::kRefGpuId] = "gpu";
   map[RefType::kRefIrq] = "irq";
   map[RefType::kRefSoftIrq] = "softirq";
   map[RefType::kRefUpid] = "upid";
+  map[RefType::kRefTrack] = "track";
   return map;
 }
 

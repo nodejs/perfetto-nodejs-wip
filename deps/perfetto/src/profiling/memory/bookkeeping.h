@@ -97,21 +97,26 @@ struct Mapping {
   Mapping(Interned<std::string> b) : build_id(std::move(b)) {}
 
   Interned<std::string> build_id;
-  uint64_t offset = 0;
+  uint64_t exact_offset = 0;
+  uint64_t start_offset = 0;
   uint64_t start = 0;
   uint64_t end = 0;
   uint64_t load_bias = 0;
   std::vector<Interned<std::string>> path_components{};
 
   bool operator<(const Mapping& other) const {
-    return std::tie(build_id, offset, start, end, load_bias, path_components) <
-           std::tie(other.build_id, other.offset, other.start, other.end,
-                    other.load_bias, other.path_components);
+    return std::tie(build_id, exact_offset, start_offset, start, end, load_bias,
+                    path_components) <
+           std::tie(other.build_id, other.exact_offset, other.start_offset,
+                    other.start, other.end, other.load_bias,
+                    other.path_components);
   }
   bool operator==(const Mapping& other) const {
-    return std::tie(build_id, offset, start, end, load_bias, path_components) ==
-           std::tie(other.build_id, other.offset, other.start, other.end,
-                    other.load_bias, other.path_components);
+    return std::tie(build_id, exact_offset, start_offset, start, end, load_bias,
+                    path_components) ==
+           std::tie(other.build_id, other.exact_offset, other.start_offset,
+                    other.start, other.end, other.load_bias,
+                    other.path_components);
   }
 };
 
@@ -162,16 +167,19 @@ class GlobalCallstackTrie {
     // This is opaque except to GlobalCallstackTrie.
     friend class GlobalCallstackTrie;
 
-    Node(Interned<Frame> frame) : Node(std::move(frame), nullptr) {}
-    Node(Interned<Frame> frame, Node* parent)
-        : parent_(parent), location_(std::move(frame)) {}
+    Node(Interned<Frame> frame) : Node(std::move(frame), 0, nullptr) {}
+    Node(Interned<Frame> frame, uint64_t id)
+        : Node(std::move(frame), id, nullptr) {}
+    Node(Interned<Frame> frame, uint64_t id, Node* parent)
+        : id_(id), parent_(parent), location_(std::move(frame)) {}
 
-    uintptr_t id() const { return reinterpret_cast<uintptr_t>(this); }
+    uint64_t id() const { return id_; }
 
    private:
     Node* GetOrCreateChild(const Interned<Frame>& loc);
 
     uint64_t ref_count_ = 0;
+    uint64_t id_;
     Node* const parent_;
     const Interned<Frame> location_;
     base::LookupSet<Node, const Interned<Frame>, &Node::location_> children_;
@@ -188,6 +196,8 @@ class GlobalCallstackTrie {
   std::vector<Interned<Frame>> BuildCallstack(const Node* node) const;
 
  private:
+  Node* GetOrCreateChild(Node* self, const Interned<Frame>& loc);
+
   Interned<Frame> InternCodeLocation(const FrameData& loc);
   Interned<Frame> MakeRootFrame();
 
@@ -195,7 +205,9 @@ class GlobalCallstackTrie {
   Interner<Mapping> mapping_interner_;
   Interner<Frame> frame_interner_;
 
-  Node root_{MakeRootFrame()};
+  uint64_t next_callstack_id_ = 0;
+
+  Node root_{MakeRootFrame(), ++next_callstack_id_};
 };
 
 // Snapshot for memory allocations of a particular process. Shares callsites
@@ -228,7 +240,8 @@ class HeapTracker {
 
   void RecordMalloc(const std::vector<FrameData>& stack,
                     uint64_t address,
-                    uint64_t size,
+                    uint64_t sample_size,
+                    uint64_t alloc_size,
                     uint64_t sequence_number,
                     uint64_t timestamp);
 
@@ -262,7 +275,7 @@ class HeapTracker {
   void GetAllocations(F fn) {
     for (const auto& addr_and_allocation : allocations_) {
       const Allocation& alloc = addr_and_allocation.second;
-      fn(addr_and_allocation.first, alloc.total_size,
+      fn(addr_and_allocation.first, alloc.sample_size, alloc.alloc_size,
          alloc.callstack_allocations->node->id());
     }
   }
@@ -280,15 +293,22 @@ class HeapTracker {
 
  private:
   struct Allocation {
-    Allocation(uint64_t size, uint64_t seq, CallstackAllocations* csa)
-        : total_size(size), sequence_number(seq), callstack_allocations(csa) {
+    Allocation(uint64_t size,
+               uint64_t asize,
+               uint64_t seq,
+               CallstackAllocations* csa)
+        : sample_size(size),
+          alloc_size(asize),
+          sequence_number(seq),
+          callstack_allocations(csa) {
       callstack_allocations->allocs++;
     }
 
     Allocation() = default;
     Allocation(const Allocation&) = delete;
     Allocation(Allocation&& other) noexcept {
-      total_size = other.total_size;
+      sample_size = other.sample_size;
+      alloc_size = other.alloc_size;
       sequence_number = other.sequence_number;
       callstack_allocations = other.callstack_allocations;
       other.callstack_allocations = nullptr;
@@ -296,12 +316,12 @@ class HeapTracker {
 
     void AddToCallstackAllocations() {
       callstack_allocations->allocation_count++;
-      callstack_allocations->allocated += total_size;
+      callstack_allocations->allocated += sample_size;
     }
 
     void SubtractFromCallstackAllocations() {
       callstack_allocations->free_count++;
-      callstack_allocations->freed += total_size;
+      callstack_allocations->freed += sample_size;
     }
 
     ~Allocation() {
@@ -309,7 +329,8 @@ class HeapTracker {
         callstack_allocations->allocs--;
     }
 
-    uint64_t total_size;
+    uint64_t sample_size;
+    uint64_t alloc_size;
     uint64_t sequence_number;
     CallstackAllocations* callstack_allocations;
   };
@@ -384,7 +405,8 @@ struct hash<::perfetto::profiling::Mapping> {
   result_type operator()(const argument_type& mapping) {
     size_t h =
         std::hash<::perfetto::profiling::InternID>{}(mapping.build_id.id());
-    h ^= std::hash<uint64_t>{}(mapping.offset);
+    h ^= std::hash<uint64_t>{}(mapping.exact_offset);
+    h ^= std::hash<uint64_t>{}(mapping.start_offset);
     h ^= std::hash<uint64_t>{}(mapping.start);
     h ^= std::hash<uint64_t>{}(mapping.end);
     h ^= std::hash<uint64_t>{}(mapping.load_bias);

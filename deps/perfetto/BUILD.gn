@@ -46,8 +46,12 @@ group("all") {
   testonly = true  # allow to build also test targets
   deps = [
     ":perfetto_unittests",
-    "src/protozero/protoc_plugin($host_toolchain)",
+    "src/protozero/protoc_plugin:protozero_plugin($host_toolchain)",
   ]
+  if (perfetto_build_standalone || perfetto_build_with_android ||
+      build_with_chromium) {
+    deps += [ ":trace_processor_shell" ]
+  }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     deps += [
       ":perfetto",
@@ -64,7 +68,6 @@ group("all") {
     if (perfetto_build_standalone) {
       deps += [
         ":perfetto_benchmarks",
-        ":trace_processor",
         "src/profiling/memory:ring_buffer",
         "src/tracing:consumer_api_test",
         "test/configs",
@@ -78,21 +81,15 @@ group("all") {
         "protos/perfetto/trace:descriptor",
       ]
       if (is_linux || is_android) {
-        deps += [ "tools/skippy" ]
         deps += [ "tools/busy_threads" ]
+        deps += [ "tools/cpu_utilization" ]
         deps += [ "tools/dump_ftrace_stats" ]
+        deps += [ "tools/skippy" ]
       }
       if (is_fuzzer) {
         deps += [ ":fuzzers" ]
       }
     }
-  }
-
-  # TODO(khokhlov): Remove this once the chrome dep is added. This is a
-  # temporary target to make sure that we don't regress trace processor support
-  # for the Windows build.
-  if (build_with_chromium) {
-    deps += [ "src/trace_processor:lib" ]
   }
 }
 
@@ -106,20 +103,24 @@ group("default") {
   ]
 }
 
+# The trace processor shell executable. An interactive shell that allows to
+# make queries on the trace using the terminal.
+if (perfetto_build_standalone || perfetto_build_with_android ||
+    build_with_chromium) {
+  executable("trace_processor_shell") {
+    deps = [
+      "gn:default_deps",
+      "src/trace_processor:trace_processor_shell",
+    ]
+    testonly = true  # We need this for proto full.
+  }
+}
+
 if (perfetto_build_standalone) {
   group("ui") {
     deps = [
       "ui",
     ]
-  }
-
-  # The trace processor shell executable. An interactive shell that allows to
-  # make queries on the trace using the terminal.
-  group("trace_processor") {
-    deps = [
-      "src/trace_processor:trace_processor_shell",
-    ]
-    testonly = true  # We need this for proto full.
   }
 }
 
@@ -247,6 +248,23 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
+  # Client library target for the Android tree.
+  # Still in experimental stage and not API stable yet.
+  # See "libperfetto_client_example" (in Android.bp.extras) for an example
+  # on how to use the Perfetto Client API from the android tree.
+  static_library("libperfetto_client_experimental") {
+    complete_static_lib = true
+    deps = [
+      "gn:default_deps",
+      "src/tracing",
+      "src/tracing:client_api",
+      "src/tracing:platform_posix",
+    ]
+    sources = [
+      "include/perfetto/tracing.h",
+    ]
+  }
+
   if (perfetto_build_with_android) {
     executable("trace_to_text") {
       testonly = true
@@ -292,6 +310,7 @@ if (perfetto_build_with_embedder) {
       "protos/perfetto/trace:zero",
       "protos/perfetto/trace/chrome:zero",
       "protos/perfetto/trace/interned_data:zero",
+      "protos/perfetto/trace/profiling:zero",
       "protos/perfetto/trace/track_event:zero",
     ]
   }
@@ -303,7 +322,6 @@ if (perfetto_build_standalone) {
     deps = [
       "gn:default_deps",
       "src/traced/probes/ftrace:benchmarks",
-      "src/tracing:tracing_benchmarks",
       "test:benchmark_main",
       "test:end_to_end_benchmarks",
     ]
@@ -320,6 +338,7 @@ if (perfetto_build_standalone) {
       "src/trace_processor:trace_processor_fuzzer",
       "src/traced/probes/ftrace:cpu_reader_fuzzer",
       "test:end_to_end_shared_memory_fuzzer",
+      "test:producer_socket_fuzzer",
     ]
   }
 }
@@ -361,6 +380,14 @@ if (should_build_heapprofd) {
     ]
     sources = [
       "src/profiling/memory/main.cc",
+    ]
+  }
+}
+
+if (perfetto_build_standalone) {
+  executable("idle_alloc") {
+    sources = [
+      "tools/idle_alloc.cc",
     ]
   }
 }

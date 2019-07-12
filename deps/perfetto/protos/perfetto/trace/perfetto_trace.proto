@@ -176,6 +176,9 @@ enum VmstatCounters {
   VMSTAT_UNEVICTABLE_PGS_MUNLOCKED = 90;
   VMSTAT_UNEVICTABLE_PGS_CLEARED = 91;
   VMSTAT_UNEVICTABLE_PGS_STRANDED = 92;
+  VMSTAT_NR_ZSPAGES = 93;
+  VMSTAT_NR_ION_HEAP = 94;
+  VMSTAT_NR_GPU_HEAP = 95;
 }
 // End of protos/perfetto/common/sys_stats_counters.proto
 
@@ -430,6 +433,64 @@ message ChromeBenchmarkMetadata {
 }
 
 // End of protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto
+
+// Begin of protos/perfetto/trace/chrome/chrome_metadata.proto
+
+// Metadata for chrome traces.
+message ChromeMetadataPacket {
+  optional BackgroundTracingMetadata background_tracing_metadata = 1;
+}
+
+// Metadata related to background tracing scenarios, states and triggers.
+message BackgroundTracingMetadata {
+  // Information about a trigger rule defined in the experiment config.
+  message TriggerRule {
+    enum TriggerType {
+      TRIGGER_UNSPECIFIED = 0;
+
+      // Traces are triggered by specific range of values of an UMA histogram.
+      MONITOR_AND_DUMP_WHEN_SPECIFIC_HISTOGRAM_AND_VALUE = 1;
+
+      // Traces are triggered by specific named events in chromium codebase,
+      // like "second-update-failure".
+      MONITOR_AND_DUMP_WHEN_TRIGGER_NAMED = 2;
+    }
+    optional TriggerType trigger_type = 1;
+
+    // Configuration of histogram trigger.
+    message HistogramRule {
+      // UMA histogram name hash, same as HistogramEventProto.name_hash.
+      optional fixed64 histogram_name_hash = 1;
+
+      // Range of values of the histogram that activates trigger.
+      optional int64 histogram_min_trigger = 2;
+      optional int64 histogram_max_trigger = 3;
+    }
+    optional HistogramRule histogram_rule = 2;
+
+    // Configuration of named trigger.
+    message NamedRule {
+      enum EventType {
+        UNSPECIFIED = 0;
+        SESSION_RESTORE = 1;
+        NAVIGATION = 2;
+        STARTUP = 3;
+
+        TEST_RULE = 1000;
+      }
+      optional EventType event_type = 1;
+    }
+    optional NamedRule named_rule = 3;
+  }
+
+  // Specifies the rule that caused the trace to be uploaded.
+  optional TriggerRule triggered_rule = 1;
+
+  // List of all active triggers in current session, when trace was triggered.
+  repeated TriggerRule active_rules = 2;
+}
+
+// End of protos/perfetto/trace/chrome/chrome_metadata.proto
 
 // Begin of protos/perfetto/trace/clock_snapshot.proto
 
@@ -1967,6 +2028,8 @@ message FtraceEvent {
     MmEventRecordFtraceEvent mm_event_record = 328;
     SysEnterFtraceEvent sys_enter = 329;
     SysExitFtraceEvent sys_exit = 330;
+    ZeroFtraceEvent zero = 331;
+    GpuFrequencyFtraceEvent gpu_frequency = 332;
   }
 }
 
@@ -2350,6 +2413,10 @@ message SuspendResumeFtraceEvent {
   optional int32 val = 2;
   optional uint32 start = 3;
 }
+message GpuFrequencyFtraceEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 state = 2;
+}
 
 // End of protos/perfetto/trace/ftrace/power.proto
 
@@ -2459,6 +2526,17 @@ message SignalGenerateFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/signal.proto
 
+// Begin of protos/perfetto/trace/ftrace/systrace.proto
+
+message ZeroFtraceEvent {
+  optional int32 flag = 1;
+  optional string name = 2;
+  optional int32 pid = 3;
+  optional int64 value = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/systrace.proto
+
 // Begin of protos/perfetto/trace/ftrace/task.proto
 
 message TaskNewtaskFtraceEvent {
@@ -2524,7 +2602,8 @@ message MmVmscanKswapdSleepFtraceEvent {
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
-// Next id: 5.
+// Next reserved id: 8 (up to 15).
+// Next id: 20.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2537,10 +2616,51 @@ message InternedData {
   repeated LegacyEventName legacy_event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
+
   // Note: field IDs up to 15 should be used for frequent data only.
+
+  // Build IDs of exectuable files.
+  repeated InternedString build_ids = 16;
+  // Paths to executable files.
+  repeated InternedString mapping_paths = 17;
+  // Names of functions used in frames below.
+  repeated InternedString function_names = 5;
+
+  // Executable files mapped into processes.
+  repeated Mapping mappings = 19;
+  // Frames of callstacks of a program.
+  repeated Frame frames = 6;
+  // A callstack of a program.
+  repeated Callstack callstacks = 7;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
+
+// Begin of protos/perfetto/trace/perfetto/perfetto_metatrace.proto
+
+// Used to trace the execution of perfetto itself.
+message PerfettoMetatrace {
+  // See base/metatrace_events.h for definitions.
+  oneof record_type {
+    uint32 event_id = 1;
+    uint32 counter_id = 2;
+  }
+
+  // Only when using |event_id|.
+  optional uint32 event_duration_ns = 3;
+
+  // Only when using |counter_id|.
+  optional int32 counter_value = 4;
+
+  // ID of the thread that emitted the event.
+  optional uint32 thread_id = 5;
+
+  // If true the meta-tracing ring buffer had overruns and hence some data is
+  // missing from this point.
+  optional bool has_overruns = 6;
+}
+
+// End of protos/perfetto/trace/perfetto/perfetto_metatrace.proto
 
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
@@ -2594,42 +2714,75 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/profile_common.proto
+
+// The interning fields in this file can refer to 2 different intern tables,
+// depending on the message they are used in. If the interned fields are present
+// in ProfilePacket proto, then the intern tables included in the ProfilePacket
+// should be used. If the intered fields are present in the
+// StreamingProfilePacket proto, then the intern tables included in all of the
+// previous InternedData message with same sequence ID should be used.
+// TODO(fmayer): Move to the intern tables to a common location.
+message InternedString {
+  optional uint64 iid = 1;
+  optional bytes str = 2;
+}
+
+// A symbol field that is emitted after the trace is written. These tables would
+// be appended as the last packets in the trace that the profiler will use, so
+// that the actual trace need not be rewritten to symbolize the profiles.
+message ProfiledFrameSymbols {
+  // Use the frame id as the interning key for the symbols.
+  optional int64 frame_iid = 1;
+
+  optional int64 function_name_id = 2;  // key to InternedString
+  optional int64 file_name_id = 3;      // key to InternedString
+  optional int32 line_number = 4;
+}
+
+message Mapping {
+  optional uint64 iid = 1;       // Interning key.
+  optional uint64 build_id = 2;  // Interning key.
+  // TODO(fmayer): Document difference between those two.
+  optional uint64 exact_offset = 8;
+  optional uint64 start_offset = 3;
+  optional uint64 start = 4;
+  optional uint64 end = 5;
+  optional uint64 load_bias = 6;
+  // E.g. ["system", "lib64", "libc.so"]
+  repeated uint64 path_string_ids = 7;  // id of string.
+}
+
+message Frame {
+  optional uint64 iid = 1;  // Interning key
+  // E.g. "fopen"
+  optional uint64 function_name_id = 2;  // id of string.
+  optional uint64 mapping_id = 3;
+  optional uint64 rel_pc = 4;
+}
+
+message Callstack {
+  optional uint64 iid = 1;
+  // Frames of this callstack. Bottom frame first.
+  repeated uint64 frame_ids = 2;
+}
+
+// End of protos/perfetto/trace/profiling/profile_common.proto
+
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
 message ProfilePacket {
+  // The following interning tables are only used in Android version Q.
+  // In newer versions, these tables are in InternedData
+  // (see protos/perfetto/trace/interned_data) and are shared across
+  // multiple ProfilePackets.
+  // For backwards compatibility, consumers need to first look up interned
+  // data in the tables within the ProfilePacket, and then, if they are empty,
+  // look up in the InternedData instead.
   repeated InternedString strings = 1;
-  message InternedString {
-    optional uint64 id = 1;
-    optional bytes str = 2;
-  }
-
   repeated Mapping mappings = 4;
-  message Mapping {
-    optional uint64 id = 1;        // Interning key.
-    optional uint64 build_id = 2;  // Interning key.
-    optional uint64 offset = 3;
-    optional uint64 start = 4;
-    optional uint64 end = 5;
-    optional uint64 load_bias = 6;
-    // E.g. ["system", "lib64", "libc.so"]
-    repeated uint64 path_string_ids = 7;  // id of string.
-  }
-
   repeated Frame frames = 2;
-  message Frame {
-    optional uint64 id = 1;  // Interning key
-    // E.g. "fopen"
-    optional uint64 function_name_id = 2;  // id of string.
-    optional uint64 mapping_id = 3;
-    optional uint64 rel_pc = 4;
-  }
-
   repeated Callstack callstacks = 3;
-  message Callstack {
-    optional uint64 id = 1;
-    // Frames of this callstack. Bottom frame first.
-    repeated uint64 frame_ids = 2;
-  }
 
   message HeapSample {
     optional uint64 callstack_id = 1;
@@ -2718,6 +2871,13 @@ message ProfilePacket {
 
   optional bool continued = 6;
   optional uint64 index = 7;
+}
+
+// Message used to represent individual stack samples sampled at discrete
+// points in time, rather than aggregated over an interval.
+message StreamingProfilePacket {
+  repeated uint64 callstack_iid = 1;  // Index into InternedData.callstacks
+  repeated int64 timestamp_delta_us = 2;
 }
 
 // End of protos/perfetto/trace/profiling/profile_packet.proto
@@ -2908,7 +3068,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 49.
+// Next id: 56.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -2938,6 +3098,14 @@ message TracePacket {
     Trigger trigger = 46;
     PackagesList packages_list = 47;
     ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
+    PerfettoMetatrace perfetto_metatrace = 49;
+    ChromeMetadataPacket chrome_metadata = 51;
+    GpuCounterEvent gpu_counter_event = 52;
+    GpuRenderStageEvent gpu_render_stage_event = 53;
+    StreamingProfilePacket streaming_profile_packet = 54;
+
+    // Only used in profile packets.
+    ProfiledFrameSymbols profiled_frame_symbols = 55;
 
     // Only used by TrackEvent.
     ProcessDescriptor process_descriptor = 43;
@@ -2948,6 +3116,11 @@ message TracePacket {
     // {82477a76-b28d-42ba-81dc-33326d57a079}. This is used to be able to
     // efficiently partition long traces without having to fully parse them.
     bytes synchronization_marker = 36;
+
+    // Zero or more proto encoded trace packets compressed using deflate.
+    // Each compressed_packets TracePacket (including the two field ids and
+    // sizes) should be less than 512KB.
+    bytes compressed_packets = 50;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
@@ -3035,7 +3208,7 @@ message DebugAnnotation {
     optional string string_value = 8;
   }
 
-  optional uint32 name_iid = 1;  // interned DebugAnnotationName.
+  optional uint64 name_iid = 1;  // interned DebugAnnotationName.
 
   oneof value {
     bool bool_value = 2;
@@ -3059,7 +3232,7 @@ message DebugAnnotation {
 // --------------------
 
 message DebugAnnotationName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
@@ -3091,6 +3264,7 @@ message ProcessDescriptor {
     PROCESS_PPAPI_BROKER = 8;
   }
   optional ChromeProcessType chrome_process_type = 4;
+  optional int32 process_priority = 5;
 }
 
 // End of protos/perfetto/trace/track_event/process_descriptor.proto
@@ -3100,7 +3274,7 @@ message ProcessDescriptor {
 // TrackEvent arguments describing the execution of a task.
 message TaskExecution {
   // Source location that the task was posted from.
-  optional uint32 posted_from_iid = 1;  // interned SourceLocation.
+  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
 }
 
 // --------------------
@@ -3108,7 +3282,7 @@ message TaskExecution {
 // --------------------
 
 message SourceLocation {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
 
   // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
@@ -3132,29 +3306,29 @@ message ThreadDescriptor {
   optional int32 legacy_sort_index = 3;
 
   enum ChromeThreadType {
-    THREAD_TYPE_UNSPECIFIED = 0;
+    CHROME_THREAD_UNSPECIFIED = 0;
 
-    THREAD_TYPE_MAIN = 1;
-    THREAD_TYPE_IO = 2;
+    CHROME_THREAD_MAIN = 1;
+    CHROME_THREAD_IO = 2;
 
     // Scheduler:
-    THREAD_TYPE_THREAD_POOL_BG_WORKER = 3;
-    THREAD_TYPE_THREAD_POOL_FG_WORKER = 4;
-    THREAD_TYPE_THREAD_POOL_FB_BLOCKING = 5;
-    THREAD_TYPE_THREAD_POOL_BG_BLOCKING = 6;
-    THREAD_TYPE_THREAD_POOL_SERVICE = 7;
+    CHROME_THREAD_POOL_BG_WORKER = 3;
+    CHROME_THREAD_POOL_FG_WORKER = 4;
+    CHROME_THREAD_POOL_FB_BLOCKING = 5;
+    CHROME_THREAD_POOL_BG_BLOCKING = 6;
+    CHROME_THREAD_POOL_SERVICE = 7;
 
     // Compositor:
-    THREAD_TYPE_COMPOSITOR = 8;
-    THREAD_TYPE_VIZ_COMPOSITOR = 9;
-    THREAD_TYPE_COMPOSITOR_WORKER = 10;
+    CHROME_THREAD_COMPOSITOR = 8;
+    CHROME_THREAD_VIZ_COMPOSITOR = 9;
+    CHROME_THREAD_COMPOSITOR_WORKER = 10;
 
     // Renderer:
-    THREAD_TYPE_SERVICE_WORKER = 11;
+    CHROME_THREAD_SERVICE_WORKER = 11;
 
     // Tracing related threads:
-    THREAD_TYPE_MEMORY_INFRA = 50;
-    THREAD_TYPE_SAMPLING_PROFILER = 51;
+    CHROME_THREAD_MEMORY_INFRA = 50;
+    CHROME_THREAD_SAMPLING_PROFILER = 51;
   };
   optional ChromeThreadType chrome_thread_type = 4;
 
@@ -3230,7 +3404,7 @@ message TrackEvent {
   }
 
   // We intend to add a binary symbol version of this in the future.
-  repeated uint32 category_iids = 3;  // interned EventCategoryName.
+  repeated uint64 category_iids = 3;  // interned EventCategoryName.
 
   // TODO(eseckler): May also want a debug_name for untyped debug-only events.
 
@@ -3251,7 +3425,7 @@ message TrackEvent {
   // Next reserved id: 16 (up to 16).
   // Next id: 20.
   message LegacyEvent {
-    optional uint32 name_iid = 1;  // interned LegacyEventName.
+    optional uint64 name_iid = 1;  // interned LegacyEventName.
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -3310,12 +3484,12 @@ message TrackEvent {
 // --------------------
 
 message EventCategory {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
 message LegacyEventName {
-  optional uint32 iid = 1;
+  optional uint64 iid = 1;
   optional string name = 2;
 }
 
@@ -3337,6 +3511,100 @@ message Trigger {
 }
 
 // End of protos/perfetto/trace/trigger.proto
+
+// Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
+
+message GpuCounterEvent {
+  // The first trace packet of each session should include counter_spec.
+  optional GpuCounterDescriptor counter_descriptor = 1;
+
+  message GpuCounter {
+    // required. Identifier for counter.
+    optional uint32 counter_id = 1;
+    // required. Value of the counter.
+    oneof value {
+      int64 int_value = 2;
+      double double_value = 3;
+    }
+  }
+  repeated GpuCounter counters = 2;
+}
+
+// End of protos/perfetto/trace/gpu/gpu_counter_event.proto
+
+// Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
+
+message GpuRenderStageEvent {
+  // required. Unique ID for the event.
+  optional uint64 event_id = 1;
+
+  // required. Start time of event in GPU clock.
+  optional uint64 start_time = 2;
+
+  // optional. Duration in GPU clock.  If unset, this is a single time point
+  // event.
+  optional uint64 duration = 3;
+
+  // required. ID to a hardware queue description in the specifications.
+  optional int32 hw_queue_id = 4;
+
+  // required. ID to a render stage description in the specifications.
+  optional int32 stage_id = 5;
+
+  // required. GL context/VK device.
+  optional uint64 context = 6;
+
+  // optional.  Additional data for the user. This may include attribs for
+  // the event like resource ids, shaders etc
+  message ExtraData {
+    optional string name = 1;
+    optional string value = 2;
+  }
+  repeated ExtraData extra_data = 7;
+
+  // The first trace packet of each session should include a Specifications
+  // to enumerate all IDs that will be used.
+  message Specifications {
+    message ContextSpec {
+      optional uint64 context = 1;
+      optional int32 pid = 2;
+    }
+    optional ContextSpec context_spec = 1;
+
+    message Description {
+      optional int32 id = 1;
+      optional string name = 2;
+      optional string description = 3;
+    }
+
+    // Labels to categorize the hw Queue this event goes on
+    repeated Description hw_queue = 2;
+
+    // Labels to categorize render stage(binning, render, compute etc)
+    repeated Description stage = 3;
+  }
+  optional Specifications specifications = 8;
+
+  // Extension for vendor's custom proto.
+  extensions 100 to 200;
+}
+
+// End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
+
+// Begin of protos/perfetto/common/gpu_counter_descriptor.proto
+
+// Description of GPU counters.
+// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+message GpuCounterDescriptor {
+  message GpuCounterSpec {
+    optional uint32 counter_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+  }
+  repeated GpuCounterSpec specs = 1;
+}
+
+// End of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
@@ -3421,8 +3689,13 @@ message DataSourceConfig {
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
+  optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  optional PackagesListConfig packages_list_config = 109 [lazy = true];
 
-  // TODO(primiano): Figure out how to deal with this, needs a multi-side patch.
+  // Chrome is special as it doesn't use the perfetto IPC layer. We want to
+  // avoid proto serialization and de-serialization there because that would
+  // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
+  // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
 
   // This is a fallback mechanism to send a free-form text config to the
@@ -3435,8 +3708,9 @@ message DataSourceConfig {
   optional string legacy_config = 1000;
 
   // This field is only used for testing.
-  optional TestConfig for_testing =
-      268435455;  // 2^28 - 1, max field id for protos supported by Java.
+  optional TestConfig for_testing = 1001;
+
+  reserved 268435455;  // Was |for_testing|. Caused more problems then found.
 }
 
 // End of protos/perfetto/config/data_source_config.proto
@@ -3577,7 +3851,8 @@ message SysStatsConfig {
   // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
   optional uint32 meminfo_period_ms = 1;
 
-  // Only the counters specified below are reported.
+  // If empty all known counters are reported. Otherwise, only the counters
+  // specified below are reported.
   repeated MeminfoCounters meminfo_counters = 2;
 
   // Polls /proc/vmstat every X ms, if non-zero.
@@ -3663,7 +3938,7 @@ message TestConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 23.
+// Next id: 26.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -3813,6 +4088,10 @@ message TraceConfig {
   // Default 5s.
   optional uint32 flush_timeout_ms = 14;
 
+  // Wait for this long for producers to acknowledge stop requests.
+  // Default 5s.
+  optional uint32 data_source_stop_timeout_ms = 23;
+
   reserved 15;  // |disable_clock_snapshotting| moved.
 
   // Android-only. If set, sends an intent to the Traceur system app when the
@@ -3912,6 +4191,28 @@ message TraceConfig {
   // If set the tracing service will ensure there is at most one tracing session
   // with this key.
   optional string unique_session_name = 22;
+
+  // Compress trace with the given method. Best effort.
+  enum CompressionType {
+    COMPRESSION_TYPE_UNSPECIFIED = 0;
+    COMPRESSION_TYPE_DEFLATE = 1;
+  };
+  optional CompressionType compression_type = 24;
+
+  // Android-only. Debug builds only. Not for general use. If set, saves a
+  // Dropbox trace into an incident. This field is read by perfetto_cmd, rather
+  // than the tracing service. All fields are mandatory.
+  message IncidentReportConfig {
+    optional string destination_package = 1;
+    optional string destination_class = 2;
+    // Level of filtering in the requested incident. See |Destination| in
+    // frameworks/base/core/proto/android/privacy.proto.
+    optional int32 privacy_level = 3;
+    // If true, do not write the trace into dropbox (i.e. incident only).
+    // Otherwise, write to both dropbox and incident.
+    optional bool skip_dropbox = 4;
+  }
+  optional IncidentReportConfig incident_report_config = 25;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -4009,3 +4310,31 @@ message HeapprofdConfig {
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
+
+// Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+message GpuCounterConfig {
+  // Desired sampling interval for counters.
+  optional uint64 counter_period_ns = 1;
+
+  // List of counters to be sampled. Counter IDs correspond to the ones
+  // described in GpuCounterSpec in the data source descriptor.
+  repeated uint32 counter_ids = 2;
+}
+
+// End of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+// Begin of protos/perfetto/config/android/packages_list_config.proto
+
+// Data source that lists details (such as version code) about packages on an
+// Android device.
+message PackagesListConfig {
+  // If not empty, emit info about only the following list of package names
+  // (exact match, no regex). Otherwise, emit info about all packages.
+  repeated string package_name_filter = 1;
+}
+
+// End of protos/perfetto/config/android/packages_list_config.proto

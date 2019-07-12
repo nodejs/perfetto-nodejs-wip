@@ -29,6 +29,7 @@ source_set("tracing") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing",
     "../../protos/perfetto/config:lite",
+    "../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../base",
     "../protozero",
   ]
@@ -39,6 +40,8 @@ source_set("tracing") {
     "core/data_source_descriptor.cc",
     "core/id_allocator.cc",
     "core/id_allocator.h",
+    "core/metatrace_writer.cc",
+    "core/metatrace_writer.h",
     "core/null_trace_writer.cc",
     "core/null_trace_writer.h",
     "core/observable_events.cc",
@@ -62,6 +65,7 @@ source_set("tracing") {
     "core/trace_writer_impl.h",
     "core/tracing_service_impl.cc",
     "core/tracing_service_impl.h",
+    "core/tracing_service_state.cc",
     "core/virtual_destructors.cc",
   ]
 }
@@ -74,7 +78,7 @@ if (perfetto_build_standalone || perfetto_build_with_android ||
       ":test_support",
       ":tracing",
       "../../gn:default_deps",
-      "../../gn:gtest_deps",
+      "../../gn:gtest_and_gmock",
       "../../protos/perfetto/config:lite",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
@@ -153,17 +157,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
-  source_set("tracing_benchmarks") {
-    testonly = true
-    deps = [
-      "../../gn:default_deps",
-      "//buildtools:benchmark",
-    ]
-    sources = [
-      "test/hello_world_benchmark.cc",
-    ]
-  }
-
   # Imlementation of the public-facing consumer API in libperfetto.so (only for
   # Android builds).
   # TODO(primiano): remove this. This is a legacy and deprecated API. The only
@@ -195,7 +188,6 @@ if (perfetto_build_with_ipc_layer) {
       "ipc/consumer/consumer_ipc_client_impl.cc",
       "ipc/consumer/consumer_ipc_client_impl.h",
       "ipc/default_socket.cc",
-      "ipc/default_socket.h",
       "ipc/posix_shared_memory.cc",
       "ipc/posix_shared_memory.h",
       "ipc/producer/producer_ipc_client_impl.cc",
@@ -217,27 +209,27 @@ if (perfetto_build_with_ipc_layer) {
   }
 }
 
-if (perfetto_build_with_ipc_layer) {
-  source_set("client_api") {
-    deps = [
-      ":common",
-      "../../gn:default_deps",
-      "../base",
-      "../tracing",
-    ]
-    public_deps = [
-      "../../include/perfetto/tracing",
-    ]
-    sources = [
-      "data_source.cc",
-      "internal/in_process_tracing_backend.cc",
-      "internal/in_process_tracing_backend.h",
-      "internal/tracing_muxer_impl.cc",
-      "platform.cc",
-      "tracing.cc",
-      "virtual_destructors.cc",
-    ]
+source_set("client_api") {
+  deps = [
+    ":common",
+    "../base",
+    "../tracing",
+  ]
+  public_deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+  ]
+  sources = [
+    "data_source.cc",
+    "internal/in_process_tracing_backend.cc",
+    "internal/in_process_tracing_backend.h",
+    "internal/tracing_muxer_impl.cc",
+    "platform.cc",
+    "tracing.cc",
+    "virtual_destructors.cc",
+  ]
 
+  if (perfetto_build_with_ipc_layer) {
     # TODO there should be an option to compile this out. This pulls IPC
     # dependencies and bloats binary size.
     deps += [ "../tracing:ipc" ]
@@ -276,20 +268,19 @@ source_set("common") {
   ]
 }
 
-if (!perfetto_build_with_embedder) {
+if (perfetto_build_standalone || perfetto_build_with_android) {
   source_set("client_api_integrationtests") {
     testonly = true
     deps = [
       ":client_api",
       ":platform_posix",
+      "../../:libperfetto_client_experimental",
       "../../gn:default_deps",
-      "../../gn:gtest_deps",
+      "../../gn:gtest_and_gmock",
+      "../../include/perfetto/tracing/core",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
       "../base",
-
-      # TODO(primiano): move DataSourceConfig to /include/ and remove this.
-      "../../include/perfetto/ext/tracing/core",
     ]
     sources = [
       "api_integrationtest.cc",

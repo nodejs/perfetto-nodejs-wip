@@ -25,6 +25,9 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 
 class TracingBackend;
@@ -58,10 +61,14 @@ struct TracingInitArgs {
   // of platform-specific bits like thread creation and TLS slot handling. If
   // not set it will use Platform::GetDefaultPlatform().
   Platform* platform = nullptr;
+
+ protected:
+  friend class Tracing;
+  bool dcheck_is_on_ = PERFETTO_DCHECK_IS_ON();
 };
 
 // The entry-point for using perfetto.
-class Tracing {
+class PERFETTO_EXPORT Tracing {
  public:
   // Initializes Perfetto with the given backends in the calling process and/or
   // with a user-provided backend. Can only be called once.
@@ -75,21 +82,32 @@ class Tracing {
   Tracing() = delete;
 };
 
-class TracingSession {
+class PERFETTO_EXPORT TracingSession {
  public:
   virtual ~TracingSession();
 
   // Configure the session passing the trace config.
-  // TODO(primiano): like in DataSourceConfig case, this requires the caller to
-  // include a header outside of public. Move TraceConfig into /public/.
   // TODO(primiano): add an error callback.
   virtual void Setup(const TraceConfig&) = 0;
 
+  // Enable tracing asynchronously.
   virtual void Start() = 0;
 
+  // Enable tracing and block until tracing has started. Note that if data
+  // sources are registered after this call was initiated, the call may return
+  // before the additional data sources have started. Also, if other producers
+  // (e.g., with system-wide tracing) have registered data sources without start
+  // notification support, this call may return before those data sources have
+  // started.
+  virtual void StartBlocking() = 0;
+
+  // Disable tracing asynchronously.
   // Use SetOnStopCallback() to get a notification when the tracing session is
   // fully stopped and all data sources have acked.
   virtual void Stop() = 0;
+
+  // Disable tracing and block until tracing has stopped.
+  virtual void StopBlocking() = 0;
 
   // This callback will be invoked when tracing is disabled.
   // This can happen either when explicitly calling TracingSession.Stop() or

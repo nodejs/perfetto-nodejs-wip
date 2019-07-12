@@ -67,6 +67,22 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
+  openTraceFromBuffer(state: StateDraft, args: {buffer: ArrayBuffer}): void {
+    clearTraceState(state);
+    const id = `${state.nextId++}`;
+    state.engines[id] = {
+      id,
+      ready: false,
+      source: args.buffer,
+    };
+    state.route = `/viewer`;
+  },
+
+  openVideoFromFile(state: StateDraft, args: {file: File}): void {
+    state.video = URL.createObjectURL(args.file);
+    state.videoEnabled = true;
+  },
+
   convertTraceToJson(_: StateDraft, args: {file: File}): void {
     ConvertTrace(args.file);
   },
@@ -95,10 +111,9 @@ export const StateActions = {
     });
   },
 
-  addTrack(state: State, args: {
+  addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string;
-    config: {};
+    trackGroup?: string; config: {};
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
@@ -278,15 +293,28 @@ export const StateActions = {
     }
   },
 
-  addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
+  addNote(state: StateDraft, args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
       id,
       timestamp: args.timestamp,
       color: args.color,
       text: '',
+      isMovie: args.isMovie
     };
     this.selectNote(state, {id});
+  },
+
+  toggleVideo(state: StateDraft): void {
+    state.videoEnabled = !state.videoEnabled;
+  },
+
+  toggleFlagPause(state: StateDraft): void {
+    if (state.video === null) {
+      state.flagPauseEnabled = false;
+    } else {
+      state.flagPauseEnabled = !state.flagPauseEnabled;
+    }
   },
 
   changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):

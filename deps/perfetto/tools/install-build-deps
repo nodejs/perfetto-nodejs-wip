@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib
 import zipfile
 
@@ -119,15 +120,15 @@ BUILD_DEPS_HOST = [
   # Keep the revision in sync with Chrome's PACKAGE_VERSION in
   # tools/clang/scripts/update.py.
   ('buildtools/clang.tgz',
-   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-361212-67510fac-4.tgz',
-   '5bdd995f13a8b67c98062394d0869c6a409e02b8',
+   'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-365097-f7e52fbd-1.tgz',
+   '157a09ef43bd47f4e7cb9b5068dcfe5eeba54610',
    'linux2'
   ),
 
   # Keep in sync with chromium DEPS.
   ('buildtools/libfuzzer',
    'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git',
-   '2a53098584c48af50aec3fb51febe5e651489774',
+   'b9f51dc8c98065df0c8da13c051046f5bab833db',
    'linux2'
   ),
 
@@ -170,7 +171,7 @@ BUILD_DEPS_HOST = [
   # These dependencies are for libunwindstack, which is used by src/profiling.
   ('buildtools/android-core',
    'https://android.googlesource.com/platform/system/core.git',
-   '09070afd38466fc0e84aa58b90a336fd4b3f56a0',
+   '3f407fcc37b401c91784700c0a691ba8b1f7ef15',
    'all'
   ),
 
@@ -194,8 +195,8 @@ BUILD_DEPS_HOST = [
 
   # Example traces for regression tests.
   ('buildtools/test_data.zip',
-   'https://storage.googleapis.com/perfetto/test-data-20190423-131328.zip',
-   '263db97612203fd0dd047edd54eaa7007e32bf91',
+   'https://storage.googleapis.com/perfetto/test-data-20190708-155403.zip',
+   'a9b260a2c3118caa4209e4097da6a851c8fd5797',
    'all',
   ),
 
@@ -360,6 +361,7 @@ def CheckoutGitRepo(path, git_url, revision):
   assert(IsGitRepoCheckoutOutAtRevision(path, revision))
   return True
 
+
 def InstallNodeModules():
   ui_dir = os.path.join(ROOT_DIR, 'ui')
   logging.info("Running npm install in {0}".format(ui_dir))
@@ -367,11 +369,36 @@ def InstallNodeModules():
     [os.path.join(ui_dir, 'npm'), 'install', '--no-save'],
     cwd=os.path.join(ROOT_DIR, 'ui'))
 
+
+def CheckHashes():
+  for deps in [BUILD_DEPS_HOST,
+               BUILD_DEPS_ANDROID,
+               TEST_DEPS_ANDROID,
+               UI_DEPS]:
+    for rel_path, url, expected_sha1, platform in deps:
+      if url.endswith('.git'):
+        continue
+      logging.info('Downloading %s from %s', rel_path, url)
+      with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.close()
+        urllib.urlretrieve(url, f.name)
+        actual_sha1 = HashLocalFile(f.name)
+        os.unlink(f.name)
+        if (actual_sha1 != expected_sha1):
+          logging.fatal('SHA1 mismatch for {} expected {} was {}'.format(
+              url, expected_sha1, actual_sha1))
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--no-android', action='store_true')
   parser.add_argument('--ui', action='store_true')
+  parser.add_argument('--check-hashes', help='Check hashes for all URLs',
+                      action='store_true')
   args = parser.parse_args()
+  if args.check_hashes:
+    CheckHashes()
+    return 0
   deps = BUILD_DEPS_HOST
   if not args.no_android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID

@@ -23,6 +23,8 @@
 #include <functional>
 #include <memory>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 namespace base {
@@ -47,7 +49,7 @@ class PlatformThreadLocalObject {
   virtual ~PlatformThreadLocalObject();
 };
 
-class Platform {
+class PERFETTO_EXPORT Platform {
  public:
   // Embedders can use this unless they have custom needs (e.g. Chrome wanting
   // to use its own base class for TLS).
@@ -64,10 +66,6 @@ class Platform {
   using ThreadLocalObject = ::perfetto::PlatformThreadLocalObject;
   virtual ThreadLocalObject* GetOrCreateThreadLocalObject() = 0;
 
-  // TODO(primiano): move base::TaskRunner into public. Right now the embedder
-  // needs to depend on non-public headers to actually implement this. It's fine
-  // because the only use cases we have are whitelisted and use already the full
-  // API surface.
   // Creates a sequenced task runner. The easiest implementation is to create
   // a new thread (e.g. use base::ThreadTaskRunner) but this can also be
   // implemented in some more clever way (e.g. using chromiums's scheduler).

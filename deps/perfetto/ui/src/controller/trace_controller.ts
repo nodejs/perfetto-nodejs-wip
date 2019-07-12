@@ -30,6 +30,7 @@ import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
+import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
@@ -152,6 +153,17 @@ export class TraceController extends Controller<States> {
         const progress = Math.round((off + slice.size) / blob.size * 100);
         this.updateStatus(`${statusHeader} ${progress} %`);
       }
+    } else if (engineCfg.source instanceof ArrayBuffer) {
+      this.updateStatus(`${statusHeader} 0 %`);
+      const buffer = engineCfg.source;
+      const SLICE_SIZE = 1024 * 1024;
+      for (let off = 0; off < buffer.byteLength; off += SLICE_SIZE) {
+        const slice = buffer.slice(off, off + SLICE_SIZE);
+        await this.engine.parse(new Uint8Array(slice));
+        const progress =
+            Math.round((off + slice.byteLength) / buffer.byteLength * 100);
+        this.updateStatus(`${statusHeader} ${progress} %`);
+      }
     } else {
       const resp = await fetch(engineCfg.source);
       if (resp.status !== 200) {
@@ -222,6 +234,7 @@ export class TraceController extends Controller<States> {
 
     const engine = assertExists<Engine>(this.engine);
     const numCpus = await engine.getNumberOfCpus();
+    const numGpus = await engine.getNumberOfGpus();
     const tracksToAdd: AddTrackArgs[] = [];
 
     // TODO(hjd): Renable Vsync tracks when fixed.
@@ -243,7 +256,7 @@ export class TraceController extends Controller<States> {
     //    }
     //  }));
     //}
-    const maxFreq = await engine.query(`
+    const maxCpuFreq = await engine.query(`
      select max(value)
      from counters
      where name = 'cpufreq';
@@ -280,11 +293,41 @@ export class TraceController extends Controller<States> {
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             cpu,
-            maximumValue: +maxFreq.columns[0].doubleValues![0],
+            maximumValue: +maxCpuFreq.columns[0].doubleValues![0],
           }
         });
       }
     }
+
+    const maxGpuFreq = await engine.query(`
+     select max(value)
+     from counters
+     where name = 'gpufreq';
+    `);
+
+    for (let gpu = 0; gpu < numGpus; gpu++) {
+      // Only add a gpu freq track if we have
+      // gpu freq data.
+      const freqExists = await engine.query(`
+        select value
+        from counters
+        where name = 'gpufreq' and ref = ${gpu}
+        limit 1;
+      `);
+      if (freqExists.numRecords > 0) {
+        tracksToAdd.push({
+          engineId: this.engineId,
+          kind: GPU_FREQ_TRACK_KIND,
+          name: `Gpu ${gpu} Frequency`,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: {
+            gpu,
+            maximumValue: +maxGpuFreq.columns[0].doubleValues![0],
+          }
+        });
+      }
+    }
+
 
     const counters = await engine.query(`
       select name, ref, ref_type
@@ -312,8 +355,9 @@ export class TraceController extends Controller<States> {
         const el = counterUtids[ref];
         el === undefined ? counterUtids[ref] = [name] :
                            counterUtids[ref].push(name);
-      } else if (refType === '[NULL]') {
-        // Add global counter tracks that are not bound to any pid/tid.
+      } else if (
+          refType === '[NULL]' || (refType === 'gpu' && name !== 'gpufreq')) {
+        // Add global or GPU counter tracks that are not bound to any pid/tid.
         tracksToAdd.push({
           engineId: this.engineId,
           kind: 'CounterTrack',
@@ -557,7 +601,8 @@ export class TraceController extends Controller<States> {
         `select bucket, upid, sum(utid_sum) / cast(${stepSecNs} as float) ` +
         `as upid_sum from thread inner join ` +
         `(select cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket, ` +
-        `sum(dur) as utid_sum, utid from slices group by bucket, utid) ` +
+        `sum(dur) as utid_sum, ref as utid from internal_slice ` +
+        `where ref_type = 'utid' group by bucket, ref) ` +
         `using(utid) group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
