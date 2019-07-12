@@ -31,7 +31,13 @@ import gn_utils
 
 # Default targets to include in the result.
 default_targets = [
-    '//:libperfetto',
+    '//:libperfetto_client_experimental',
+    "//include/perfetto/protozero:protozero",
+    "//protos/perfetto/common:zero",
+    "//protos/perfetto/config:zero",
+    "//protos/perfetto/config:zero",
+    "//protos/perfetto/trace:zero",
+    "//protos/perfetto/trace/gpu:zero",
 ]
 
 # Arguments for the GN output directory (unless overridden from the command

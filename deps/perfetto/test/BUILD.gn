@@ -23,7 +23,7 @@ source_set("end_to_end_integrationtests") {
     ":task_runner_thread_delegates",
     ":test_helper",
     "../gn:default_deps",
-    "../gn:gtest_deps",
+    "../gn:gtest_and_gmock",
     "../include/perfetto/ext/traced",
     "../include/perfetto/protozero",
     "../protos/perfetto/config:zero",
@@ -68,6 +68,19 @@ perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
     "../src/protozero",
     "../src/tracing",
     "../src/tracing:ipc",
+  ]
+}
+
+perfetto_fuzzer_test("producer_socket_fuzzer") {
+  sources = [
+    "producer_socket_fuzzer.cc",
+  ]
+  testonly = true
+  deps = [
+    ":test_helper",
+    "../gn:default_deps",
+    "../protos/perfetto/trace:zero",
+    "../src/base:test_support",
   ]
 }
 
@@ -131,9 +144,9 @@ if (perfetto_build_standalone) {
       ":task_runner_thread",
       ":task_runner_thread_delegates",
       ":test_helper",
-      "../buildtools:benchmark",
+      "../gn:benchmark",
       "../gn:default_deps",
-      "../gn:gtest_deps",
+      "../gn:gtest_and_gmock",
       "../include/perfetto/ext/traced",
       "../protos/perfetto/trace:lite",
       "../protos/perfetto/trace:zero",
@@ -153,7 +166,7 @@ if (perfetto_build_standalone) {
   source_set("benchmark_main") {
     testonly = true
     deps = [
-      "../buildtools:benchmark",
+      "../gn:benchmark",
       "../gn:default_deps",
     ]
     sources = [

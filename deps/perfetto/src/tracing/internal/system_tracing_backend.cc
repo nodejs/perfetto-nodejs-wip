@@ -19,8 +19,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
-#include "src/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 namespace internal {
@@ -38,7 +38,8 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
 
   auto endpoint = ProducerIPCClient::Connect(
-      GetProducerSocket(), args.producer, args.producer_name, args.task_runner);
+      GetProducerSocket(), args.producer, args.producer_name, args.task_runner,
+      TracingService::ProducerSMBScrapingMode::kEnabled);
   PERFETTO_CHECK(endpoint);
   return endpoint;
 }

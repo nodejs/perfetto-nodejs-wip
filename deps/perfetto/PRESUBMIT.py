@@ -22,7 +22,8 @@ def CheckChange(input, output):
   def long_line_sources(x): return input.FilterSourceFile(
       x, white_list=".*",
       black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-                  'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$'])
+                  'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$',
+                  '.*/Makefile$'])
   results = []
   results += input.canned_checks.CheckDoNotSubmit(input, output)
   results += input.canned_checks.CheckChangeHasNoTabs(input, output)
@@ -53,7 +54,8 @@ def CheckBuild(input_api, output_api):
   # If no GN files were modified, bail out.
   def build_file_filter(x): return input_api.FilterSourceFile(
       x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel'))
+      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel',
+          'BUILD\.extras'))
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
 

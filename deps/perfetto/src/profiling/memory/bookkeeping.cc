@@ -30,7 +30,8 @@ namespace profiling {
 
 void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                uint64_t address,
-                               uint64_t size,
+                               uint64_t sample_size,
+                               uint64_t alloc_size,
                                uint64_t sequence_number,
                                uint64_t timestamp) {
   auto it = allocations_.find(address);
@@ -54,14 +55,15 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
 
       alloc.SubtractFromCallstackAllocations();
       GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
-      alloc.total_size = size;
+      alloc.sample_size = sample_size;
+      alloc.alloc_size = alloc_size;
       alloc.sequence_number = sequence_number;
       alloc.callstack_allocations = MaybeCreateCallstackAllocations(node);
     }
   } else {
     GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
     allocations_.emplace(address,
-                         Allocation(size, sequence_number,
+                         Allocation(sample_size, alloc_size, sequence_number,
                                     MaybeCreateCallstackAllocations(node)));
   }
 
@@ -128,11 +130,12 @@ uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack) {
   return alloc.allocated - alloc.freed;
 }
 
-GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetOrCreateChild(
+GlobalCallstackTrie::Node* GlobalCallstackTrie::GetOrCreateChild(
+    Node* self,
     const Interned<Frame>& loc) {
-  Node* child = children_.Get(loc);
+  Node* child = self->children_.Get(loc);
   if (!child)
-    child = children_.Emplace(loc, this);
+    child = self->children_.Emplace(loc, ++next_callstack_id_, self);
   return child;
 }
 
@@ -150,7 +153,7 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
     const std::vector<FrameData>& callstack) {
   Node* node = &root_;
   for (const FrameData& loc : callstack) {
-    node = node->GetOrCreateChild(InternCodeLocation(loc));
+    node = GetOrCreateChild(node, InternCodeLocation(loc));
   }
   return node;
 }
@@ -179,7 +182,8 @@ void GlobalCallstackTrie::DecrementNode(Node* node) {
 
 Interned<Frame> GlobalCallstackTrie::InternCodeLocation(const FrameData& loc) {
   Mapping map(string_interner_.Intern(loc.build_id));
-  map.offset = loc.frame.map_elf_start_offset;
+  map.exact_offset = loc.frame.map_exact_offset;
+  map.start_offset = loc.frame.map_elf_start_offset;
   map.start = loc.frame.map_start;
   map.end = loc.frame.map_end;
   map.load_bias = loc.frame.map_load_bias;

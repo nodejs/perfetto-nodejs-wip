@@ -23,6 +23,9 @@
 // The only exception to this should be large projects where build time is a
 // concern (e.g. chromium), which migh prefer sticking to strict IWYU.
 
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/platform.h"
 #include "perfetto/tracing/tracing.h"

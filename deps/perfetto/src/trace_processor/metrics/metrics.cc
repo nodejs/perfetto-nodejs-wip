@@ -225,6 +225,11 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
   if (field.is_repeated() && !is_inside_repeated)
     return AppendRepeated(field, ptr, size);
 
+  // If we're inside a repeated field and we get a 0 sized message, this must
+  // be a silent null which we ignore.
+  if (size == 0)
+    return util::OkStatus();
+
   switch (field.type()) {
     case FieldDescriptorProto::TYPE_MESSAGE:
       return AppendSingleMessage(field, ptr, size);
@@ -329,12 +334,10 @@ std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
   single->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
   single->set_type_name(type_name.c_str(), type_name.size());
   single->set_protobuf(serialized.data(), serialized.size());
-  result->Finalize();
   return result.SerializeAsArray();
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeRaw() {
-  message_->Finalize();
   return message_.SerializeAsArray();
 }
 
@@ -358,7 +361,8 @@ util::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
                value.bytes_count);
       break;
     case SqlValue::kNull:
-      return util::ErrStatus("Unexpected null value in repeated field");
+      AddBytes(nullptr, 0);
+      break;
   }
   return util::OkStatus();
 }
@@ -389,7 +393,6 @@ std::vector<uint8_t> RepeatedFieldBuilder::SerializeToProtoBuilderResult() {
     return std::vector<uint8_t>();
 
   message_->set_is_repeated(true);
-  message_->Finalize();
   return message_.SerializeAsArray();
 }
 
@@ -559,6 +562,8 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
     PERFETTO_DLOG("RUN_METRIC: Executing query: %s", buffer.c_str());
     auto it = fn_ctx->tp->ExecuteQuery(buffer);
+    it.Next();
+
     util::Status status = it.Status();
     if (!status.ok()) {
       char* error =
@@ -566,10 +571,6 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
                           status.c_message());
       sqlite3_result_error(ctx, error, -1);
       sqlite3_free(error);
-      return;
-    } else if (it.Next()) {
-      sqlite3_result_error(
-          ctx, "RUN_METRIC: functions should not produce any output", -1);
       return;
     }
   }

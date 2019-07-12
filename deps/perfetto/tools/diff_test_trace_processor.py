@@ -56,9 +56,16 @@ def write_diff(expected, actual):
   for line in diff:
     sys.stderr.write(line)
 
-def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
-                     expected_path, trace_descriptor_path,
-                     metrics_message_factory):
+class TestResult(object):
+  def __init__(self, test_type, input_name, cmd, expected, actual):
+    self.test_type = test_type
+    self.input_name = input_name
+    self.cmd = cmd
+    self.expected = expected
+    self.actual = actual
+
+def run_metrics_test(trace_processor_path, gen_trace_path, metric,
+                     expected_path, perf_path, metrics_message_factory):
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
@@ -68,6 +75,8 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
     metric,
     '--metrics-output=binary',
     gen_trace_path,
+    '--perf-file',
+    perf_path,
   ]
   actual = subprocess.check_output(cmd)
 
@@ -85,58 +94,40 @@ def run_metrics_test(trace_processor_path, gen_trace_path, trace_path, metric,
   expected_text = text_format.MessageToString(expected_message)
   actual_text = text_format.MessageToString(actual_message)
 
-  # Do an equality check of the python messages
-  if expected_text == actual_text:
-    return True
+  return TestResult("metric", metric, cmd, expected_text, actual_text)
 
-  # Write some metadata about the traces.
-  sys.stderr.write(
-    "Expected did not match actual for trace {} and metric {}\n"
-    .format(trace_path, metric))
-  sys.stderr.write("Expected file: {}\n".format(expected_path))
-  sys.stderr.write("Command line: {}\n".format(' '.join(cmd)))
-
-  # Print the diff between the two.
-  write_diff(expected_text, actual_text)
-
-  return False
-
-def run_query_test(trace_processor_path, gen_trace_path, trace_path,
-                   query_path, expected_path, trace_descriptor_path):
+def run_query_test(trace_processor_path, gen_trace_path,
+                   query_path, expected_path, perf_path):
   with open(expected_path, "r") as expected_file:
     expected = expected_file.read()
 
-  cmd = [trace_processor_path, '-q', query_path, gen_trace_path]
+  cmd = [
+    trace_processor_path,
+    '-q',
+    query_path,
+    gen_trace_path,
+    '--perf-file',
+    perf_path,
+  ]
   actual = subprocess.check_output(cmd).decode("utf-8")
 
-  if expected == actual:
-    return True
-
-  # Write some metadata.
-  sys.stderr.write(
-    "Expected did not match actual for trace {} and query {}\n"
-    .format(trace_path, query_path))
-  sys.stderr.write("Expected file: {}\n".format(expected_path))
-  sys.stderr.write("Command line: {}\n".format(' '.join(cmd)))
-
-  # Write the diff of the two files.
-  write_diff(expected, actual)
-
-  return False
+  return TestResult("query", query_path, cmd, expected, actual)
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--test-type", type=str, default="queries")
   parser.add_argument('--trace-descriptor', type=str)
   parser.add_argument('--metrics-descriptor', type=str)
+  parser.add_argument('--perf-file', type=str)
   parser.add_argument('trace_processor', type=str,
                       help='location of trace processor binary')
   args = parser.parse_args()
 
+  test_dir = os.path.join(ROOT_DIR, "test")
   if args.test_type == 'queries':
-    index = os.path.join(ROOT_DIR, "test", "trace_processor", "index")
+    index = os.path.join(test_dir, "trace_processor", "index")
   elif args.test_type == 'metrics':
-    index = os.path.join(ROOT_DIR, "test", "metrics", "index")
+    index = os.path.join(test_dir, "metrics", "index")
   else:
     print("Unknown test type {}. Supported: queries, metircs".format(
       args.test_type))
@@ -165,6 +156,7 @@ def main():
   metrics_message_factory = create_metrics_message_factory(
     metrics_descriptor_path)
 
+  perf_data = []
   test_failure = 0
   index_dir = os.path.dirname(index)
   for line in index_lines:
@@ -194,32 +186,59 @@ def main():
       gen_trace_file = None
       gen_trace_path = trace_path
 
-    if args.test_type == 'queries':
-      query_path = os.path.abspath(
-        os.path.join(index_dir, query_fname_or_metric))
-      if not os.path.exists(query_path):
-        print("Query file not found {}".format(query_path))
-        return 1
+    with tempfile.NamedTemporaryFile() as tmp_perf_file:
+      tmp_perf_path = tmp_perf_file.name
+      if args.test_type == 'queries':
+        query_path = os.path.abspath(
+          os.path.join(index_dir, query_fname_or_metric))
+        if not os.path.exists(query_path):
+          print("Query file not found {}".format(query_path))
+          return 1
 
-      success = run_query_test(args.trace_processor, gen_trace_path,
-                               trace_path, query_path, expected_path,
-                               trace_descriptor_path)
-    elif args.test_type == 'metrics':
-      success = run_metrics_test(args.trace_processor, gen_trace_path,
-                                 trace_path, query_fname_or_metric,
-                                 expected_path, trace_descriptor_path,
-                                 metrics_message_factory)
-    else:
-      assert False
+        result = run_query_test(args.trace_processor, gen_trace_path,
+                                query_path, expected_path, tmp_perf_path)
+      elif args.test_type == 'metrics':
+        result = run_metrics_test(args.trace_processor, gen_trace_path,
+                                  query_fname_or_metric,
+                                  expected_path, tmp_perf_path,
+                                  metrics_message_factory)
+      else:
+        assert False
+
+      perf_lines = tmp_perf_file.readlines()
 
     if gen_trace_file:
       gen_trace_file.close()
 
-    if not success:
+    if result.expected == result.actual:
+      assert len(perf_lines) == 1
+      perf_numbers = perf_lines[0].split(',')
+
+      trace_shortpath = os.path.relpath(trace_path, test_dir)
+
+      assert len(perf_numbers) == 2
+      perf_data.append((trace_shortpath, query_fname_or_metric,
+                        perf_numbers[0], perf_numbers[1]))
+    else:
+      sys.stderr.write(
+        "Expected did not match actual for trace {} and {} {}\n"
+        .format(trace_path, result.test_type, result.input_name))
+      sys.stderr.write("Expected file: {}\n".format(expected_path))
+      sys.stderr.write("Command line: {}\n".format(' '.join(result.cmd)))
+
+      write_diff(result.expected, result.actual)
+
       test_failure += 1
 
   if test_failure == 0:
     print("All tests passed successfully")
+
+    if args.perf_file:
+      with open(args.perf_file, 'w+') as perf_file:
+        perf_data.sort()
+        for args in perf_data:
+          perf_file.write('{},{},{},{}\n'
+            .format(args[0], args[1], args[2], args[3]))
     return 0
   else:
     print("Total failures: {}".format(test_failure))

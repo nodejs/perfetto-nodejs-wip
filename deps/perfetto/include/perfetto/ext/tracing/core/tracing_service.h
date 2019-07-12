@@ -39,6 +39,7 @@ class Consumer;
 class DataSourceDescriptor;
 class Producer;
 class SharedMemoryArbiter;
+class TracingServiceState;
 class TraceConfig;
 class TraceWriter;
 
@@ -202,6 +203,12 @@ class ConsumerEndpoint {
   //
   // TODO(eseckler): Extend this to support producers & data sources.
   virtual void ObserveEvents(uint32_t enabled_event_types) = 0;
+
+  // Used to obtain the list of connected data sources and other info about
+  // the tracing service.
+  using QueryServiceStateCallback =
+      std::function<void(bool success, const TracingServiceState&)>;
+  virtual void QueryServiceState(QueryServiceStateCallback) = 0;
 };  // class ConsumerEndpoint.
 
 // The public API of the tracing Service business logic.
@@ -254,9 +261,10 @@ class PERFETTO_EXPORT TracingService {
   // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
   // |uid| is the trusted user id of the producer process, used by the consumers
   // for validating the origin of trace data.
-  // |shared_memory_size_hint_bytes| is an optional hint on the size of the
-  // shared memory buffer. The service can ignore the hint (e.g., if the hint
-  // is unreasonably large).
+  // |shared_memory_size_hint_bytes| and |shared_memory_page_size_hint_bytes|
+  // are optional hints on the size of the shared memory buffer and its pages.
+  // The service can ignore the hints (e.g., if the hints are unreasonably
+  // large or other sizes were configured in a tracing session's config).
   // |in_process| enables the ProducerEndpoint to manage its own shared memory
   // and enables use of |ProducerEndpoint::CreateTraceWriter|.
   // Can return null in the unlikely event that service has too many producers
@@ -268,7 +276,8 @@ class PERFETTO_EXPORT TracingService {
       size_t shared_memory_size_hint_bytes = 0,
       bool in_process = false,
       ProducerSMBScrapingMode smb_scraping_mode =
-          ProducerSMBScrapingMode::kDefault) = 0;
+          ProducerSMBScrapingMode::kDefault,
+      size_t shared_memory_page_size_hint_bytes = 0) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.
