@@ -4,9 +4,9 @@
 
 #include <cstdint>
 
-#include "src/assembler-inl.h"
 #include "src/base/overflowing-math.h"
-#include "src/objects-inl.h"
+#include "src/codegen/assembler-inl.h"
+#include "src/objects/objects-inl.h"
 #include "src/wasm/wasm-objects.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/value-helper.h"
@@ -32,10 +32,12 @@ namespace {
 template <typename T>
 class ArgPassingHelper {
  public:
-  ArgPassingHelper(WasmRunnerBase& runner, WasmFunctionCompiler& inner_compiler,
-                   std::initializer_list<uint8_t> bytes_inner_function,
-                   std::initializer_list<uint8_t> bytes_outer_function,
-                   const T& expected_lambda)
+  ArgPassingHelper(
+      WasmRunnerBase& runner,                // NOLINT(runtime/references)
+      WasmFunctionCompiler& inner_compiler,  // NOLINT(runtime/references)
+      std::initializer_list<uint8_t> bytes_inner_function,
+      std::initializer_list<uint8_t> bytes_outer_function,
+      const T& expected_lambda)
       : isolate_(runner.main_isolate()),
         expected_lambda_(expected_lambda),
         debug_info_(WasmInstanceObject::GetOrCreateDebugInfo(
@@ -59,7 +61,7 @@ class ArgPassingHelper {
     Handle<Object> arg_objs[] = {isolate_->factory()->NewNumber(args)...};
 
     uint64_t num_interpreted_before = debug_info_->NumInterpretedCalls();
-    Handle<Object> global(isolate_->context()->global_object(), isolate_);
+    Handle<Object> global(isolate_->context().global_object(), isolate_);
     MaybeHandle<Object> retval = Execution::Call(
         isolate_, main_fun_wrapper_, global, arraysize(arg_objs), arg_objs);
     uint64_t num_interpreted_after = debug_info_->NumInterpretedCalls();
@@ -80,7 +82,8 @@ class ArgPassingHelper {
 
 template <typename T>
 static ArgPassingHelper<T> GetHelper(
-    WasmRunnerBase& runner, WasmFunctionCompiler& inner_compiler,
+    WasmRunnerBase& runner,                // NOLINT(runtime/references)
+    WasmFunctionCompiler& inner_compiler,  // NOLINT(runtime/references)
     std::initializer_list<uint8_t> bytes_inner_function,
     std::initializer_list<uint8_t> bytes_outer_function,
     const T& expected_lambda) {

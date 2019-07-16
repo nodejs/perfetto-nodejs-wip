@@ -160,9 +160,6 @@
           "name": "StringMatchAll",
           "main": "run.js",
           "resources": [ "string-matchall.js" ],
-          "flags": [
-            "--harmony-string-matchall"
-          ],
           "test_flags": [ "string-matchall" ],
           "results_regexp": "^%s\\-Strings\\(Score\\): (.+)$",
           "run_count": 1,
@@ -225,10 +222,7 @@
             {"name": "StringDropLastSubstring"},
             {"name": "StringTakeLastSlice"},
             {"name": "StringTakeLastSubstr"},
-            {"name": "StringTakeLastSubstring"},
-            {"name": "StringDropFirstSlice"},
-            {"name": "StringDropFirstSubstr"},
-            {"name": "StringDropFirstSubstring"}
+            {"name": "StringTakeLastSubstring"}
           ]
         }
       ]
@@ -353,6 +347,66 @@
             {"name": "Smi-Constant-ShiftLeft"},
             {"name": "Smi-Constant-ShiftRight"},
             {"name": "Smi-Constant-ShiftRightLogical"}
+          ]
+        },
+        {
+          "name": "LdaNamedProperty",
+          "main": "run.js",
+          "resources": [ "LdaNamedProperty.js" ],
+          "test_flags": [ "LdaNamedProperty" ],
+          "results_regexp": "^%s\\-BytecodeHandler\\(Score\\): (.+)$",
+          "tests": [
+            {"name": "Smi-Value"},
+            {"name": "Prototype-Chain-Value"}
+          ]
+        },
+        {
+          "name": "LdaKeyedProperty",
+          "main": "run.js",
+          "resources": [ "LdaKeyedProperty.js" ],
+          "test_flags": [ "LdaKeyedProperty" ],
+          "results_regexp": "^%s\\-BytecodeHandler\\(Score\\): (.+)$",
+          "tests": [
+            {"name": "Object-Lookup-String-Constant"},
+            {"name": "Object-Lookup-Index-Number"},
+            {"name": "Object-Lookup-Index-String"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "InterpreterEntryTrampoline",
+      "path": ["InterpreterEntryTrampoline"],
+      "flags": ["--no-opt"],
+      "tests": [
+        {
+          "name": "Arguments",
+          "main": "run.js",
+          "resources": [ "arguments.js" ],
+          "test_flags": [ "arguments" ],
+          "results_regexp": "^%s\\-InterpreterEntryTrampoline\\(Score\\): (.+)$",
+          "tests": [
+            {"name": "Calls-No-Argument"},
+            {"name": "Calls-One-Argument"},
+            {"name": "Calls-Six-Arguments"},
+            {"name": "Calls-With-Receiver"}
+          ]
+        },
+        {
+          "name": "Locals",
+          "main": "run.js",
+          "resources": [ "locals.js" ],
+          "test_flags": [ "locals" ],
+          "results_regexp": "^%s\\-InterpreterEntryTrampoline\\(Score\\): (.+)$",
+          "tests": [
+            {"name": "Calls-No-Argument"},
+            {"name": "Calls-No-Argument-1-Local"},
+            {"name": "Calls-No-Argument-2-Locals"},
+            {"name": "Calls-No-Argument-3-Locals"},
+            {"name": "Calls-No-Argument-4-Locals"},
+            {"name": "Calls-No-Argument-5-Locals"},
+            {"name": "Calls-No-Argument-10-Locals"},
+            {"name": "Calls-No-Argument-100-Locals"}
           ]
         }
       ]

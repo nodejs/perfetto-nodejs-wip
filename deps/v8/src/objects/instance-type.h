@@ -5,11 +5,13 @@
 #ifndef V8_OBJECTS_INSTANCE_TYPE_H_
 #define V8_OBJECTS_INSTANCE_TYPE_H_
 
-#include "src/elements-kind.h"
-#include "src/objects-definitions.h"
+#include "src/objects/elements-kind.h"
+#include "src/objects/objects-definitions.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
+
+#include "torque-generated/instance-types-tq.h"
 
 namespace v8 {
 namespace internal {
@@ -32,11 +34,16 @@ enum StringRepresentationTag {
 };
 const uint32_t kIsIndirectStringMask = 1 << 0;
 const uint32_t kIsIndirectStringTag = 1 << 0;
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((kSeqStringTag & kIsIndirectStringMask) == 0);
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((kExternalStringTag & kIsIndirectStringMask) == 0);
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((kConsStringTag & kIsIndirectStringMask) == kIsIndirectStringTag);
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((kSlicedStringTag & kIsIndirectStringMask) ==
               kIsIndirectStringTag);
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((kThinStringTag & kIsIndirectStringMask) == kIsIndirectStringTag);
 
 // For strings, bit 3 indicates whether the string consists of two-byte
@@ -131,17 +138,6 @@ enum InstanceType : uint16_t {
   BYTE_ARRAY_TYPE,
   BYTECODE_ARRAY_TYPE,
   FREE_SPACE_TYPE,
-  FIXED_INT8_ARRAY_TYPE,  // FIRST_FIXED_TYPED_ARRAY_TYPE
-  FIXED_UINT8_ARRAY_TYPE,
-  FIXED_INT16_ARRAY_TYPE,
-  FIXED_UINT16_ARRAY_TYPE,
-  FIXED_INT32_ARRAY_TYPE,
-  FIXED_UINT32_ARRAY_TYPE,
-  FIXED_FLOAT32_ARRAY_TYPE,
-  FIXED_FLOAT64_ARRAY_TYPE,
-  FIXED_UINT8_CLAMPED_ARRAY_TYPE,
-  FIXED_BIGINT64_ARRAY_TYPE,
-  FIXED_BIGUINT64_ARRAY_TYPE,  // LAST_FIXED_TYPED_ARRAY_TYPE
   FIXED_DOUBLE_ARRAY_TYPE,
   FEEDBACK_METADATA_TYPE,
   FILLER_TYPE,  // LAST_DATA_TYPE
@@ -152,6 +148,7 @@ enum InstanceType : uint16_t {
   ACCESSOR_PAIR_TYPE,
   ALIASED_ARGUMENTS_ENTRY_TYPE,
   ALLOCATION_MEMENTO_TYPE,
+  ARRAY_BOILERPLATE_DESCRIPTION_TYPE,
   ASM_WASM_DATA_TYPE,
   ASYNC_GENERATOR_REQUEST_TYPE,
   CLASS_POSITIONS_TYPE,
@@ -161,21 +158,24 @@ enum InstanceType : uint16_t {
   FUNCTION_TEMPLATE_RARE_DATA_TYPE,
   INTERCEPTOR_INFO_TYPE,
   INTERPRETER_DATA_TYPE,
-  MODULE_INFO_ENTRY_TYPE,
-  MODULE_TYPE,
   OBJECT_TEMPLATE_INFO_TYPE,
   PROMISE_CAPABILITY_TYPE,
   PROMISE_REACTION_TYPE,
   PROTOTYPE_INFO_TYPE,
   SCRIPT_TYPE,
+  SOURCE_POSITION_TABLE_WITH_FRAME_CACHE_TYPE,
+  SOURCE_TEXT_MODULE_INFO_ENTRY_TYPE,
   STACK_FRAME_INFO_TYPE,
   STACK_TRACE_FRAME_TYPE,
+  TEMPLATE_OBJECT_DESCRIPTION_TYPE,
   TUPLE2_TYPE,
   TUPLE3_TYPE,
-  ARRAY_BOILERPLATE_DESCRIPTION_TYPE,
+  WASM_CAPI_FUNCTION_DATA_TYPE,
   WASM_DEBUG_INFO_TYPE,
   WASM_EXCEPTION_TAG_TYPE,
   WASM_EXPORTED_FUNCTION_DATA_TYPE,
+  WASM_INDIRECT_FUNCTION_TABLE_TYPE,
+  WASM_JS_FUNCTION_DATA_TYPE,
 
   CALLABLE_TASK_TYPE,  // FIRST_MICROTASK_TYPE
   CALLBACK_TASK_TYPE,
@@ -184,20 +184,28 @@ enum InstanceType : uint16_t {
   PROMISE_RESOLVE_THENABLE_JOB_TASK_TYPE,
   FINALIZATION_GROUP_CLEANUP_JOB_TASK_TYPE,  // LAST_MICROTASK_TYPE
 
+#define MAKE_TORQUE_INSTANCE_TYPE(V) V,
+  TORQUE_DEFINED_INSTANCE_TYPES(MAKE_TORQUE_INSTANCE_TYPE)
+#undef MAKE_TORQUE_INSTANCE_TYPE
+
+  // Modules
+  SOURCE_TEXT_MODULE_TYPE,  // FIRST_MODULE_TYPE
+  SYNTHETIC_MODULE_TYPE,    // LAST_MODULE_TYPE
+
   ALLOCATION_SITE_TYPE,
   EMBEDDER_DATA_ARRAY_TYPE,
   // FixedArrays.
   FIXED_ARRAY_TYPE,  // FIRST_FIXED_ARRAY_TYPE
   OBJECT_BOILERPLATE_DESCRIPTION_TYPE,
   CLOSURE_FEEDBACK_CELL_ARRAY_TYPE,
-  HASH_TABLE_TYPE,        // FIRST_HASH_TABLE_TYPE
-  ORDERED_HASH_MAP_TYPE,  // FIRST_DICTIONARY_TYPE
+  HASH_TABLE_TYPE,  // FIRST_HASH_TABLE_TYPE
+  ORDERED_HASH_MAP_TYPE,
   ORDERED_HASH_SET_TYPE,
   ORDERED_NAME_DICTIONARY_TYPE,
   NAME_DICTIONARY_TYPE,
   GLOBAL_DICTIONARY_TYPE,
   NUMBER_DICTIONARY_TYPE,
-  SIMPLE_NUMBER_DICTIONARY_TYPE,  // LAST_DICTIONARY_TYPE
+  SIMPLE_NUMBER_DICTIONARY_TYPE,
   STRING_TABLE_TYPE,
   EPHEMERON_HASH_TABLE_TYPE,  // LAST_HASH_TABLE_TYPE
   SCOPE_INFO_TYPE,
@@ -253,7 +261,7 @@ enum InstanceType : uint16_t {
   // Like JS_API_OBJECT_TYPE, but requires access checks and/or has
   // interceptors.
   JS_SPECIAL_API_OBJECT_TYPE = 0x0410,  // LAST_SPECIAL_RECEIVER_TYPE
-  JS_VALUE_TYPE,                        // LAST_CUSTOM_ELEMENTS_RECEIVER
+  JS_PRIMITIVE_WRAPPER_TYPE,            // LAST_CUSTOM_ELEMENTS_RECEIVER
   // Like JS_OBJECT_TYPE, but created from API function.
   JS_API_OBJECT_TYPE = 0x0420,
   JS_OBJECT_TYPE,
@@ -330,9 +338,6 @@ enum InstanceType : uint16_t {
   // Boundaries for testing if given HeapObject is a subclass of HashTable
   FIRST_HASH_TABLE_TYPE = HASH_TABLE_TYPE,
   LAST_HASH_TABLE_TYPE = EPHEMERON_HASH_TABLE_TYPE,
-  // Boundaries for testing if given HeapObject is a subclass of Dictionary
-  FIRST_DICTIONARY_TYPE = ORDERED_HASH_MAP_TYPE,
-  LAST_DICTIONARY_TYPE = SIMPLE_NUMBER_DICTIONARY_TYPE,
   // Boundaries for testing if given HeapObject is a subclass of WeakFixedArray.
   FIRST_WEAK_FIXED_ARRAY_TYPE = WEAK_FIXED_ARRAY_TYPE,
   LAST_WEAK_FIXED_ARRAY_TYPE = TRANSITION_ARRAY_TYPE,
@@ -342,9 +347,9 @@ enum InstanceType : uint16_t {
   // Boundaries for testing if given HeapObject is a subclass of Microtask.
   FIRST_MICROTASK_TYPE = CALLABLE_TASK_TYPE,
   LAST_MICROTASK_TYPE = FINALIZATION_GROUP_CLEANUP_JOB_TASK_TYPE,
-  // Boundaries for testing for a fixed typed array.
-  FIRST_FIXED_TYPED_ARRAY_TYPE = FIXED_INT8_ARRAY_TYPE,
-  LAST_FIXED_TYPED_ARRAY_TYPE = FIXED_BIGUINT64_ARRAY_TYPE,
+  // Boundaries of module record types
+  FIRST_MODULE_TYPE = SOURCE_TEXT_MODULE_TYPE,
+  LAST_MODULE_TYPE = SYNTHETIC_MODULE_TYPE,
   // Boundary for promotion to old space.
   LAST_DATA_TYPE = FILLER_TYPE,
   // Boundary for objects represented as JSReceiver (i.e. JSObject or JSProxy).
@@ -362,7 +367,7 @@ enum InstanceType : uint16_t {
   // Boundary case for testing JSReceivers that may have elements while having
   // an empty fixed array as elements backing store. This is true for string
   // wrappers.
-  LAST_CUSTOM_ELEMENTS_RECEIVER = JS_VALUE_TYPE,
+  LAST_CUSTOM_ELEMENTS_RECEIVER = JS_PRIMITIVE_WRAPPER_TYPE,
 
   FIRST_SET_ITERATOR_TYPE = JS_SET_KEY_VALUE_ITERATOR_TYPE,
   LAST_SET_ITERATOR_TYPE = JS_SET_VALUE_ITERATOR_TYPE,
@@ -377,6 +382,7 @@ enum InstanceType : uint16_t {
 constexpr InstanceType LAST_STRING_TYPE =
     static_cast<InstanceType>(FIRST_NONSTRING_TYPE - 1);
 
+// NOLINTNEXTLINE(runtime/references) (false positive)
 STATIC_ASSERT((FIRST_NONSTRING_TYPE & kIsNotStringMask) != kStringTag);
 STATIC_ASSERT(JS_OBJECT_TYPE == Internals::kJSObjectType);
 STATIC_ASSERT(JS_API_OBJECT_TYPE == Internals::kJSApiObjectType);
@@ -384,6 +390,10 @@ STATIC_ASSERT(JS_SPECIAL_API_OBJECT_TYPE == Internals::kJSSpecialApiObjectType);
 STATIC_ASSERT(FIRST_NONSTRING_TYPE == Internals::kFirstNonstringType);
 STATIC_ASSERT(ODDBALL_TYPE == Internals::kOddballType);
 STATIC_ASSERT(FOREIGN_TYPE == Internals::kForeignType);
+
+// Make sure it doesn't matter whether we sign-extend or zero-extend these
+// values, because Torque treats InstanceType as signed.
+STATIC_ASSERT(LAST_TYPE < 1 << 15);
 
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
                                            InstanceType instance_type);
@@ -429,12 +439,16 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
   V(JSDataView, JS_DATA_VIEW_TYPE)                                           \
   V(JSDate, JS_DATE_TYPE)                                                    \
   V(JSError, JS_ERROR_TYPE)                                                  \
+  V(JSFinalizationGroup, JS_FINALIZATION_GROUP_TYPE)                         \
+  V(JSFinalizationGroupCleanupIterator,                                      \
+    JS_FINALIZATION_GROUP_CLEANUP_ITERATOR_TYPE)                             \
   V(JSFunction, JS_FUNCTION_TYPE)                                            \
   V(JSGlobalObject, JS_GLOBAL_OBJECT_TYPE)                                   \
   V(JSGlobalProxy, JS_GLOBAL_PROXY_TYPE)                                     \
   V(JSMap, JS_MAP_TYPE)                                                      \
   V(JSMessageObject, JS_MESSAGE_OBJECT_TYPE)                                 \
   V(JSModuleNamespace, JS_MODULE_NAMESPACE_TYPE)                             \
+  V(JSPrimitiveWrapper, JS_PRIMITIVE_WRAPPER_TYPE)                           \
   V(JSPromise, JS_PROMISE_TYPE)                                              \
   V(JSProxy, JS_PROXY_TYPE)                                                  \
   V(JSRegExp, JS_REGEXP_TYPE)                                                \
@@ -443,10 +457,6 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
   V(JSSet, JS_SET_TYPE)                                                      \
   V(JSStringIterator, JS_STRING_ITERATOR_TYPE)                               \
   V(JSTypedArray, JS_TYPED_ARRAY_TYPE)                                       \
-  V(JSValue, JS_VALUE_TYPE)                                                  \
-  V(JSFinalizationGroup, JS_FINALIZATION_GROUP_TYPE)                         \
-  V(JSFinalizationGroupCleanupIterator,                                      \
-    JS_FINALIZATION_GROUP_CLEANUP_ITERATOR_TYPE)                             \
   V(JSWeakMap, JS_WEAK_MAP_TYPE)                                             \
   V(JSWeakRef, JS_WEAK_REF_TYPE)                                             \
   V(JSWeakSet, JS_WEAK_SET_TYPE)                                             \
@@ -471,11 +481,11 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
   V(SmallOrderedHashMap, SMALL_ORDERED_HASH_MAP_TYPE)                        \
   V(SmallOrderedHashSet, SMALL_ORDERED_HASH_SET_TYPE)                        \
   V(SmallOrderedNameDictionary, SMALL_ORDERED_NAME_DICTIONARY_TYPE)          \
-  V(SourcePositionTableWithFrameCache, TUPLE2_TYPE)                          \
+  V(SourceTextModule, SOURCE_TEXT_MODULE_TYPE)                               \
   V(StoreHandler, STORE_HANDLER_TYPE)                                        \
   V(StringTable, STRING_TABLE_TYPE)                                          \
   V(Symbol, SYMBOL_TYPE)                                                     \
-  V(TemplateObjectDescription, TUPLE2_TYPE)                                  \
+  V(SyntheticModule, SYNTHETIC_MODULE_TYPE)                                  \
   V(TransitionArray, TRANSITION_ARRAY_TYPE)                                  \
   V(UncompiledDataWithoutPreparseData,                                       \
     UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_TYPE)                              \
@@ -511,14 +521,12 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
 
 #define INSTANCE_TYPE_CHECKERS_RANGE(V)                             \
   V(Context, FIRST_CONTEXT_TYPE, LAST_CONTEXT_TYPE)                 \
-  V(Dictionary, FIRST_DICTIONARY_TYPE, LAST_DICTIONARY_TYPE)        \
   V(FixedArray, FIRST_FIXED_ARRAY_TYPE, LAST_FIXED_ARRAY_TYPE)      \
-  V(FixedTypedArrayBase, FIRST_FIXED_TYPED_ARRAY_TYPE,              \
-    LAST_FIXED_TYPED_ARRAY_TYPE)                                    \
   V(HashTable, FIRST_HASH_TABLE_TYPE, LAST_HASH_TABLE_TYPE)         \
   V(JSMapIterator, FIRST_MAP_ITERATOR_TYPE, LAST_MAP_ITERATOR_TYPE) \
   V(JSSetIterator, FIRST_SET_ITERATOR_TYPE, LAST_SET_ITERATOR_TYPE) \
   V(Microtask, FIRST_MICROTASK_TYPE, LAST_MICROTASK_TYPE)           \
+  V(Module, FIRST_MODULE_TYPE, LAST_MODULE_TYPE)                    \
   V(Name, FIRST_NAME_TYPE, LAST_NAME_TYPE)                          \
   V(String, FIRST_STRING_TYPE, LAST_STRING_TYPE)                    \
   V(WeakFixedArray, FIRST_WEAK_FIXED_ARRAY_TYPE, LAST_WEAK_FIXED_ARRAY_TYPE)

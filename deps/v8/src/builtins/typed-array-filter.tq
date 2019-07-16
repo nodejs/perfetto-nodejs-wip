@@ -10,7 +10,7 @@ namespace typed_array_filter {
 
   // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.filter
   transitioning javascript builtin TypedArrayPrototypeFilter(
-      context: Context, receiver: Object, ...arguments): Object {
+      js-implicit context: Context, receiver: Object)(...arguments): Object {
     // arguments[0] = callback
     // arguments[1] = thisArg
     try {
@@ -21,7 +21,8 @@ namespace typed_array_filter {
       const src = typed_array::EnsureAttached(array) otherwise IsDetached;
 
       // 3. Let len be O.[[ArrayLength]].
-      const len: Smi = src.length;
+      // TODO(v8:4153): Support huge TypedArrays here.
+      const len = Cast<Smi>(Convert<Number>(src.length)) otherwise unreachable;
 
       // 4. If IsCallable(callbackfn) is false, throw a TypeError exception.
       const callbackfn = Cast<Callable>(arguments[0])
@@ -58,7 +59,7 @@ namespace typed_array_filter {
       }
 
       // 10. Let A be ? TypedArraySpeciesCreate(O, captured).
-      const lengthSmi: Smi = Convert<Smi>(kept.length);
+      const lengthSmi = Convert<PositiveSmi>(kept.length);
       const typedArray: JSTypedArray =
           typed_array_createtypedarray::TypedArraySpeciesCreateByLength(
               kBuiltinName, array, lengthSmi);

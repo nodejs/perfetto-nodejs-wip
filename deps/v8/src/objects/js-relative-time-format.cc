@@ -12,12 +12,12 @@
 #include <memory>
 #include <string>
 
+#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
-#include "src/isolate.h"
-#include "src/objects-inl.h"
 #include "src/objects/intl-objects.h"
 #include "src/objects/js-number-format.h"
 #include "src/objects/js-relative-time-format-inl.h"
+#include "src/objects/objects-inl.h"
 #include "unicode/numfmt.h"
 #include "unicode/reldatefmt.h"
 
@@ -54,11 +54,9 @@ JSRelativeTimeFormat::Numeric JSRelativeTimeFormat::getNumeric(
   UNREACHABLE();
 }
 
-MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::Initialize(
-    Isolate* isolate, Handle<JSRelativeTimeFormat> relative_time_format_holder,
-    Handle<Object> locales, Handle<Object> input_options) {
-  relative_time_format_holder->set_flags(0);
-
+MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::New(
+    Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+    Handle<Object> input_options) {
   // 1. Let requestedLocales be ? CanonicalizeLocaleList(locales).
   Maybe<std::vector<std::string>> maybe_requested_locales =
       Intl::CanonicalizeLocaleList(isolate, locales);
@@ -88,8 +86,21 @@ MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::Initialize(
   MAYBE_RETURN(maybe_locale_matcher, MaybeHandle<JSRelativeTimeFormat>());
   Intl::MatcherOption matcher = maybe_locale_matcher.FromJust();
 
-  // 7. Let localeData be %RelativeTimeFormat%.[[LocaleData]].
-  // 8. Let r be
+  // 7. Let _numberingSystem_ be ? GetOption(_options_, `"numberingSystem"`,
+  //    `"string"`, *undefined*, *undefined*).
+  std::unique_ptr<char[]> numbering_system_str = nullptr;
+  Maybe<bool> maybe_numberingSystem = Intl::GetNumberingSystem(
+      isolate, options, "Intl.RelativeTimeFormat", &numbering_system_str);
+  // 8. If _numberingSystem_ is not *undefined*, then
+  // a. If _numberingSystem_ does not match the
+  //    `(3*8alphanum) *("-" (3*8alphanum))` sequence, throw a *RangeError*
+  //     exception.
+  MAYBE_RETURN(maybe_numberingSystem, MaybeHandle<JSRelativeTimeFormat>());
+
+  // 9. Set _opt_.[[nu]] to _numberingSystem_.
+
+  // 10. Let localeData be %RelativeTimeFormat%.[[LocaleData]].
+  // 11. Let r be
   // ResolveLocale(%RelativeTimeFormat%.[[AvailableLocales]],
   //               requestedLocales, opt,
   //               %RelativeTimeFormat%.[[RelevantExtensionKeys]], localeData).
@@ -97,14 +108,23 @@ MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::Initialize(
       Intl::ResolveLocale(isolate, JSRelativeTimeFormat::GetAvailableLocales(),
                           requested_locales, matcher, {"nu"});
 
-  // 9. Let locale be r.[[Locale]].
-  // 10. Set relativeTimeFormat.[[Locale]] to locale.
-  // 11. Let dataLocale be r.[[DataLocale]].
-  Handle<String> locale_str =
-      isolate->factory()->NewStringFromAsciiChecked(r.locale.c_str());
-  relative_time_format_holder->set_locale(*locale_str);
+  // 12. Let locale be r.[[Locale]].
+  // 13. Set relativeTimeFormat.[[Locale]] to locale.
+  // 14. Let dataLocale be r.[[DataLocale]].
+  icu::Locale icu_locale = r.icu_locale;
+  UErrorCode status = U_ZERO_ERROR;
+  if (numbering_system_str != nullptr) {
+    icu_locale.setUnicodeKeywordValue("nu", numbering_system_str.get(), status);
+    CHECK(U_SUCCESS(status));
+  }
 
-  // 12. Let s be ? GetOption(options, "style", "string",
+  Maybe<std::string> maybe_locale_str = Intl::ToLanguageTag(icu_locale);
+  MAYBE_RETURN(maybe_locale_str, MaybeHandle<JSRelativeTimeFormat>());
+
+  Handle<String> locale_str = isolate->factory()->NewStringFromAsciiChecked(
+      maybe_locale_str.FromJust().c_str());
+
+  // 15. Let s be ? GetOption(options, "style", "string",
   //                          «"long", "short", "narrow"», "long").
   Maybe<Style> maybe_style = Intl::GetStringOption<Style>(
       isolate, options, "style", "Intl.RelativeTimeFormat",
@@ -113,22 +133,13 @@ MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::Initialize(
   MAYBE_RETURN(maybe_style, MaybeHandle<JSRelativeTimeFormat>());
   Style style_enum = maybe_style.FromJust();
 
-  // 13. Set relativeTimeFormat.[[Style]] to s.
-  relative_time_format_holder->set_style(style_enum);
-
-  // 14. Let numeric be ? GetOption(options, "numeric", "string",
+  // 17. Let numeric be ? GetOption(options, "numeric", "string",
   //                                «"always", "auto"», "always").
   Maybe<Numeric> maybe_numeric = Intl::GetStringOption<Numeric>(
       isolate, options, "numeric", "Intl.RelativeTimeFormat",
       {"always", "auto"}, {Numeric::ALWAYS, Numeric::AUTO}, Numeric::ALWAYS);
   MAYBE_RETURN(maybe_numeric, MaybeHandle<JSRelativeTimeFormat>());
   Numeric numeric_enum = maybe_numeric.FromJust();
-
-  // 15. Set relativeTimeFormat.[[Numeric]] to numeric.
-  relative_time_format_holder->set_numeric(numeric_enum);
-
-  icu::Locale icu_locale = r.icu_locale;
-  UErrorCode status = U_ZERO_ERROR;
 
   // 19. Let relativeTimeFormat.[[NumberFormat]] be
   //     ? Construct(%NumberFormat%, « nfLocale, nfOptions »).
@@ -159,6 +170,21 @@ MaybeHandle<JSRelativeTimeFormat> JSRelativeTimeFormat::Initialize(
       Managed<icu::RelativeDateTimeFormatter>::FromRawPtr(isolate, 0,
                                                           icu_formatter);
 
+  // Now all properties are ready, so we can allocate the result object.
+  Handle<JSRelativeTimeFormat> relative_time_format_holder =
+      Handle<JSRelativeTimeFormat>::cast(
+          isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
+  DisallowHeapAllocation no_gc;
+  relative_time_format_holder->set_flags(0);
+
+  relative_time_format_holder->set_locale(*locale_str);
+
+  // 16. Set relativeTimeFormat.[[Style]] to s.
+  relative_time_format_holder->set_style(style_enum);
+
+  // 18. Set relativeTimeFormat.[[Numeric]] to numeric.
+  relative_time_format_holder->set_numeric(numeric_enum);
+
   // 21. Set relativeTimeFormat.[[InitializedRelativeTimeFormat]] to true.
   relative_time_format_holder->set_icu_formatter(*managed_formatter);
 
@@ -177,7 +203,7 @@ Handle<JSObject> JSRelativeTimeFormat::ResolvedOptions(
                         format_holder->StyleAsString(), NONE);
   JSObject::AddProperty(isolate, result, factory->numeric_string(),
                         format_holder->NumericAsString(), NONE);
-  std::string locale_str(format_holder->locale()->ToCString().get());
+  std::string locale_str(format_holder->locale().ToCString().get());
   icu::Locale icu_locale = Intl::CreateICULocale(locale_str);
   std::string numbering_system = Intl::GetNumberingSystem(icu_locale);
   JSObject::AddProperty(
@@ -293,7 +319,7 @@ MaybeHandle<T> FormatCommon(
                       isolate->factory()->NewStringFromAsciiChecked(func_name)),
         T);
   }
-  icu::RelativeDateTimeFormatter* formatter = format->icu_formatter()->raw();
+  icu::RelativeDateTimeFormatter* formatter = format->icu_formatter().raw();
   CHECK_NOT_NULL(formatter);
   URelativeDateTimeUnit unit_enum;
   if (!GetURelativeDateTimeUnit(unit, &unit_enum)) {

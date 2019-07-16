@@ -11,13 +11,15 @@ namespace typed_array_reduceright {
       array: typed_array::AttachedJSTypedArray, callbackfn: Callable,
       initialValue: Object): Object {
     let witness = typed_array::NewAttachedJSTypedArrayWitness(array);
-    const length: Smi = Convert<Smi>(array.length);
+    // TODO(v8:4153): Support huge TypedArrays here.
+    const length =
+        Cast<Smi>(Convert<Number>(witness.Get().length)) otherwise unreachable;
     let accumulator = initialValue;
     for (let k: Smi = length - 1; k >= 0; k--) {
       // BUG(4895): We should throw on detached buffers rather than simply exit.
       witness.Recheck() otherwise break;
       const value: Object = witness.Load(k);
-      if (accumulator == Hole) {
+      if (accumulator == TheHole) {
         accumulator = value;
       } else {
         accumulator = Call(
@@ -25,7 +27,7 @@ namespace typed_array_reduceright {
             witness.GetStable());
       }
     }
-    if (accumulator == Hole) {
+    if (accumulator == TheHole) {
       ThrowTypeError(kReduceNoInitial, kBuiltinName);
     }
     return accumulator;
@@ -33,8 +35,8 @@ namespace typed_array_reduceright {
 
   // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.reduceright
   transitioning javascript builtin
-  TypedArrayPrototypeReduceRight(implicit context: Context)(
-      receiver: Object, ...arguments): Object {
+  TypedArrayPrototypeReduceRight(
+      js-implicit context: Context, receiver: Object)(...arguments): Object {
     // arguments[0] = callback
     // arguments[1] = initialValue.
     try {
@@ -43,7 +45,7 @@ namespace typed_array_reduceright {
       const uarray = typed_array::EnsureAttached(array) otherwise IsDetached;
 
       const callbackfn = Cast<Callable>(arguments[0]) otherwise NotCallable;
-      const initialValue = arguments.length >= 2 ? arguments[1] : Hole;
+      const initialValue = arguments.length >= 2 ? arguments[1] : TheHole;
 
       return ReduceRightAllElements(uarray, callbackfn, initialValue);
     }

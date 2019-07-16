@@ -8,7 +8,7 @@
 #include "src/compiler/js-graph.h"
 #include "src/compiler/node.h"
 #include "src/compiler/simplified-operator.h"
-#include "src/vector-slot-pair.h"
+#include "src/compiler/vector-slot-pair.h"
 
 namespace v8 {
 namespace internal {
@@ -57,6 +57,7 @@ namespace compiler {
   V(Word32Shr)                            \
   V(Word32Shl)                            \
   V(Word32Sar)                            \
+  V(Word64And)                            \
   V(IntAdd)                               \
   V(IntSub)                               \
   V(IntMul)                               \
@@ -71,6 +72,7 @@ namespace compiler {
   V(Uint64LessThan)                       \
   V(Uint64LessThanOrEqual)                \
   V(Int32LessThan)                        \
+  V(Int64Sub)                             \
   V(Float64Add)                           \
   V(Float64Sub)                           \
   V(Float64Div)                           \
@@ -93,22 +95,24 @@ namespace compiler {
   V(Uint32Mod)                               \
   V(Uint32Div)
 
-#define JSGRAPH_SINGLETON_CONSTANT_LIST(V) \
-  V(TrueConstant)                          \
-  V(FalseConstant)                         \
-  V(NullConstant)                          \
-  V(BigIntMapConstant)                     \
-  V(BooleanMapConstant)                    \
-  V(HeapNumberMapConstant)                 \
-  V(NoContextConstant)                     \
-  V(EmptyStringConstant)                   \
-  V(UndefinedConstant)                     \
-  V(TheHoleConstant)                       \
-  V(FixedArrayMapConstant)                 \
-  V(FixedDoubleArrayMapConstant)           \
-  V(ToNumberBuiltinConstant)               \
-  V(AllocateInYoungGenerationStubConstant) \
-  V(AllocateInOldGenerationStubConstant)
+#define JSGRAPH_SINGLETON_CONSTANT_LIST(V)        \
+  V(TrueConstant)                                 \
+  V(FalseConstant)                                \
+  V(NullConstant)                                 \
+  V(BigIntMapConstant)                            \
+  V(BooleanMapConstant)                           \
+  V(HeapNumberMapConstant)                        \
+  V(NoContextConstant)                            \
+  V(EmptyStringConstant)                          \
+  V(UndefinedConstant)                            \
+  V(TheHoleConstant)                              \
+  V(FixedArrayMapConstant)                        \
+  V(FixedDoubleArrayMapConstant)                  \
+  V(ToNumberBuiltinConstant)                      \
+  V(AllocateInYoungGenerationStubConstant)        \
+  V(AllocateRegularInYoungGenerationStubConstant) \
+  V(AllocateInOldGenerationStubConstant)          \
+  V(AllocateRegularInOldGenerationStubConstant)
 
 class GraphAssembler;
 
@@ -196,6 +200,7 @@ class GraphAssembler {
   Node* Float64Constant(double value);
   Node* Projection(int index, Node* value);
   Node* HeapConstant(Handle<HeapObject> object);
+  Node* NumberConstant(double value);
   Node* CEntryStubConstant(int result_size);
   Node* ExternalConstant(ExternalReference ref);
 
@@ -225,6 +230,7 @@ class GraphAssembler {
   Node* ToNumber(Node* value);
   Node* BitcastWordToTagged(Node* value);
   Node* BitcastTaggedToWord(Node* value);
+  Node* BitcastTaggedSignedToWord(Node* value);
   Node* Allocate(AllocationType allocation, Node* size);
   Node* LoadField(FieldAccess const&, Node* object);
   Node* LoadElement(ElementAccess const&, Node* object, Node* index);
@@ -233,11 +239,11 @@ class GraphAssembler {
                      Node* value);
 
   Node* Store(StoreRepresentation rep, Node* object, Node* offset, Node* value);
-  Node* Load(MachineType rep, Node* object, Node* offset);
+  Node* Load(MachineType type, Node* object, Node* offset);
 
   Node* StoreUnaligned(MachineRepresentation rep, Node* object, Node* offset,
                        Node* value);
-  Node* LoadUnaligned(MachineType rep, Node* object, Node* offset);
+  Node* LoadUnaligned(MachineType type, Node* object, Node* offset);
 
   Node* Retain(Node* buffer);
   Node* UnsafePointerAdd(Node* base, Node* external);
@@ -284,6 +290,12 @@ class GraphAssembler {
   Node* ExtractCurrentEffect();
 
  private:
+  // Adds a decompression node if pointer compression is enabled and the
+  // representation loaded is a compressed one. To be used after loads.
+  Node* InsertDecompressionIfNeeded(MachineRepresentation rep, Node* value);
+  // Adds a compression node if pointer compression is enabled and the
+  // representation to be stored is a compressed one. To be used before stores.
+  Node* InsertCompressionIfNeeded(MachineRepresentation rep, Node* value);
   template <typename... Vars>
   void MergeState(GraphAssemblerLabel<sizeof...(Vars)>* label, Vars... vars);
 

@@ -5,10 +5,11 @@
 #ifndef V8_OBJECTS_MAP_H_
 #define V8_OBJECTS_MAP_H_
 
-#include "src/globals.h"
-#include "src/objects.h"
+#include "src/common/globals.h"
 #include "src/objects/code.h"
 #include "src/objects/heap-object.h"
+#include "src/objects/objects.h"
+#include "torque-generated/field-offsets-tq.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -41,8 +42,6 @@ enum InstanceType : uint16_t;
   V(FeedbackCell)                      \
   V(FeedbackVector)                    \
   V(FixedArray)                        \
-  V(FixedFloat64Array)                 \
-  V(FixedTypedArrayBase)               \
   V(FreeSpace)                         \
   V(JSApiObject)                       \
   V(JSArrayBuffer)                     \
@@ -66,12 +65,16 @@ enum InstanceType : uint16_t;
   V(SmallOrderedHashMap)               \
   V(SmallOrderedHashSet)               \
   V(SmallOrderedNameDictionary)        \
+  V(SourceTextModule)                  \
   V(Struct)                            \
   V(Symbol)                            \
+  V(SyntheticModule)                   \
   V(ThinString)                        \
   V(TransitionArray)                   \
   V(UncompiledDataWithoutPreparseData) \
   V(UncompiledDataWithPreparseData)    \
+  V(WasmCapiFunctionData)              \
+  V(WasmIndirectFunctionTable)         \
   V(WasmInstanceObject)                \
   V(WeakArray)                         \
   V(WeakCell)
@@ -138,22 +141,22 @@ using MapHandles = std::vector<Handle<Map>>;
 //      |          |   - has_prototype_slot (bit 7)              |
 //      +----------+---------------------------------------------+
 //      | Byte     | [bit_field2]                                |
-//      |          |   - is_extensible (bit 0)                   |
-//      |          |   - is_prototype_map (bit 1)                |
-//      |          |   - is_in_retained_map_list (bit 2)         |
+//      |          |   - new_target_is_base (bit 0)              |
+//      |          |   - is_immutable_proto (bit 1)              |
+//      |          |   - unused bit (bit 2)                      |
 //      |          |   - elements_kind (bits 3..7)               |
 // +----+----------+---------------------------------------------+
 // | Int           | [bit_field3]                                |
 // |               |   - enum_length (bit 0..9)                  |
 // |               |   - number_of_own_descriptors (bit 10..19)  |
-// |               |   - is_dictionary_map (bit 20)              |
-// |               |   - owns_descriptors (bit 21)               |
-// |               |   - has_hidden_prototype (bit 22)           |
-// |               |   - is_deprecated (bit 23)                  |
-// |               |   - is_unstable (bit 24)                    |
-// |               |   - is_migration_target (bit 25)            |
-// |               |   - is_immutable_proto (bit 26)             |
-// |               |   - new_target_is_base (bit 27)             |
+// |               |   - is_prototype_map (bit 20)               |
+// |               |   - is_dictionary_map (bit 21)              |
+// |               |   - owns_descriptors (bit 22)               |
+// |               |   - is_in_retained_map_list (bit 23)        |
+// |               |   - is_deprecated (bit 24)                  |
+// |               |   - is_unstable (bit 25)                    |
+// |               |   - is_migration_target (bit 26)            |
+// |               |   - is_extensible (bit 28)                  |
 // |               |   - may_have_interesting_symbols (bit 28)   |
 // |               |   - construction_counter (bit 29..31)       |
 // |               |                                             |
@@ -165,11 +168,6 @@ using MapHandles = std::vector<Handle<Map>>;
 // +---------------+---------------------------------------------+
 // | TaggedPointer | [constructor_or_backpointer]                |
 // +---------------+---------------------------------------------+
-// | TaggedPointer | If Map is a prototype map:                  |
-// |               |   [prototype_info]                          |
-// |               | Else:                                       |
-// |               |   [raw_transitions]                         |
-// +---------------+---------------------------------------------+
 // | TaggedPointer | [instance_descriptors]                      |
 // +*************************************************************+
 // ! TaggedPointer ! [layout_descriptors]                        !
@@ -178,6 +176,13 @@ using MapHandles = std::vector<Handle<Map>>;
 // !               ! (basically on 64 bit architectures)         !
 // +*************************************************************+
 // | TaggedPointer | [dependent_code]                            |
+// +---------------+---------------------------------------------+
+// | TaggedPointer | [prototype_validity_cell]                   |
+// +---------------+---------------------------------------------+
+// | TaggedPointer | If Map is a prototype map:                  |
+// |               |   [prototype_info]                          |
+// |               | Else:                                       |
+// |               |   [raw_transitions]                         |
 // +---------------+---------------------------------------------+
 
 class Map : public HeapObject {
@@ -210,8 +215,8 @@ class Map : public HeapObject {
       Handle<Map> map, Handle<Context> native_context);
 
   // Retrieve interceptors.
-  inline InterceptorInfo GetNamedInterceptor();
-  inline InterceptorInfo GetIndexedInterceptor();
+  DECL_GETTER(GetNamedInterceptor, InterceptorInfo)
+  DECL_GETTER(GetIndexedInterceptor, InterceptorInfo)
 
   // Instance type.
   DECL_PRIMITIVE_ACCESSORS(instance_type, InstanceType)
@@ -263,10 +268,10 @@ class Map : public HeapObject {
   DECL_PRIMITIVE_ACCESSORS(bit_field2, byte)
 
 // Bit positions for |bit_field2|.
-#define MAP_BIT_FIELD2_FIELDS(V, _)     \
-  V(IsExtensibleBit, bool, 1, _)        \
-  V(IsPrototypeMapBit, bool, 1, _)      \
-  V(IsInRetainedMapListBit, bool, 1, _) \
+#define MAP_BIT_FIELD2_FIELDS(V, _)      \
+  V(NewTargetIsBaseBit, bool, 1, _)      \
+  V(IsImmutablePrototypeBit, bool, 1, _) \
+  V(UnusedBit, bool, 1, _)               \
   V(ElementsKindBits, ElementsKind, 5, _)
 
   DEFINE_BIT_FIELDS(MAP_BIT_FIELD2_FIELDS)
@@ -285,14 +290,14 @@ class Map : public HeapObject {
 #define MAP_BIT_FIELD3_FIELDS(V, _)                               \
   V(EnumLengthBits, int, kDescriptorIndexBitCount, _)             \
   V(NumberOfOwnDescriptorsBits, int, kDescriptorIndexBitCount, _) \
+  V(IsPrototypeMapBit, bool, 1, _)                                \
   V(IsDictionaryMapBit, bool, 1, _)                               \
   V(OwnsDescriptorsBit, bool, 1, _)                               \
-  V(HasHiddenPrototypeBit, bool, 1, _)                            \
+  V(IsInRetainedMapListBit, bool, 1, _)                           \
   V(IsDeprecatedBit, bool, 1, _)                                  \
   V(IsUnstableBit, bool, 1, _)                                    \
   V(IsMigrationTargetBit, bool, 1, _)                             \
-  V(IsImmutablePrototypeBit, bool, 1, _)                          \
-  V(NewTargetIsBaseBit, bool, 1, _)                               \
+  V(IsExtensibleBit, bool, 1, _)                                  \
   V(MayHaveInterestingSymbolsBit, bool, 1, _)                     \
   V(ConstructionCounterBits, int, 3, _)
 
@@ -376,9 +381,6 @@ class Map : public HeapObject {
 
   DECL_BOOLEAN_ACCESSORS(has_prototype_slot)
 
-  // Tells whether the instance with this map has a hidden prototype.
-  DECL_BOOLEAN_ACCESSORS(has_hidden_prototype)
-
   // Records and queries whether the instance has a named interceptor.
   DECL_BOOLEAN_ACCESSORS(has_named_interceptor)
 
@@ -419,7 +421,7 @@ class Map : public HeapObject {
   inline bool has_sloppy_arguments_elements() const;
   inline bool has_fast_sloppy_arguments_elements() const;
   inline bool has_fast_string_wrapper_elements() const;
-  inline bool has_fixed_typed_array_elements() const;
+  inline bool has_typed_array_elements() const;
   inline bool has_dictionary_elements() const;
   inline bool has_frozen_or_sealed_elements() const;
   inline bool has_sealed_elements() const;
@@ -429,7 +431,7 @@ class Map : public HeapObject {
   // map with DICTIONARY_ELEMENTS was found in the prototype chain.
   bool DictionaryElementsInPrototypeChainOnly(Isolate* isolate);
 
-  inline Map ElementsTransitionMap();
+  inline Map ElementsTransitionMap(Isolate* isolate);
 
   inline FixedArrayBase GetInitialElements() const;
 
@@ -518,17 +520,16 @@ class Map : public HeapObject {
   static inline bool IsMostGeneralFieldType(Representation representation,
                                             FieldType field_type);
 
-  // Generalizes constness, representation and field_type if objects with given
-  // instance type can have fast elements that can be transitioned by stubs or
-  // optimized code to more general elements kind.
+  // Generalizes representation and field_type if objects with given
+  // instance type can have fast elements that can be transitioned by
+  // stubs or optimized code to more general elements kind.
   // This generalization is necessary in order to ensure that elements kind
   // transitions performed by stubs / optimized code don't silently transition
-  // PropertyConstness::kMutable fields back to VariableMode::kConst state or
+  // fields with representation "Tagged" back to "Smi" or "HeapObject" or
   // fields with HeapObject representation and "Any" type back to "Class" type.
   static inline void GeneralizeIfCanHaveTransitionableFastElementsKind(
       Isolate* isolate, InstanceType instance_type,
-      PropertyConstness* constness, Representation* representation,
-      Handle<FieldType>* field_type);
+      Representation* representation, Handle<FieldType>* field_type);
 
   V8_EXPORT_PRIVATE static Handle<Map> ReconfigureProperty(
       Isolate* isolate, Handle<Map> map, int modify_index,
@@ -544,8 +545,13 @@ class Map : public HeapObject {
 
   V8_EXPORT_PRIVATE static Handle<Map> Normalize(Isolate* isolate,
                                                  Handle<Map> map,
+                                                 ElementsKind new_elements_kind,
                                                  PropertyNormalizationMode mode,
                                                  const char* reason);
+
+  inline static Handle<Map> Normalize(Isolate* isolate, Handle<Map> fast_map,
+                                      PropertyNormalizationMode mode,
+                                      const char* reason);
 
   // Tells whether the map is used for JSObjects in dictionary mode (ie
   // normalized objects, ie objects for which HasFastProperties returns false).
@@ -572,19 +578,18 @@ class Map : public HeapObject {
   // Returns null_value if there's neither a constructor function nor a
   // FunctionTemplateInfo available.
   DECL_ACCESSORS(constructor_or_backpointer, Object)
-  inline Object GetConstructor() const;
-  inline FunctionTemplateInfo GetFunctionTemplateInfo() const;
+  DECL_GETTER(GetConstructor, Object)
+  DECL_GETTER(GetFunctionTemplateInfo, FunctionTemplateInfo)
   inline void SetConstructor(Object constructor,
                              WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
   // [back pointer]: points back to the parent map from which a transition
   // leads to this map. The field overlaps with the constructor (see above).
-  inline HeapObject GetBackPointer() const;
-  inline void SetBackPointer(Object value,
+  DECL_GETTER(GetBackPointer, HeapObject)
+  inline void SetBackPointer(HeapObject value,
                              WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // [instance descriptors]: describes the object.
-  inline DescriptorArray instance_descriptors() const;
-  inline DescriptorArray synchronized_instance_descriptors() const;
+  DECL_GETTER(instance_descriptors, DescriptorArray)
   V8_EXPORT_PRIVATE void SetInstanceDescriptors(Isolate* isolate,
                                                 DescriptorArray descriptors,
                                                 int number_of_own_descriptors);
@@ -628,7 +633,7 @@ class Map : public HeapObject {
   // chain state.
   inline bool IsPrototypeValidityCellValid() const;
 
-  inline PropertyDetails GetLastDescriptorDetails() const;
+  inline PropertyDetails GetLastDescriptorDetails(Isolate* isolate) const;
 
   inline int LastAdded() const;
 
@@ -724,9 +729,8 @@ class Map : public HeapObject {
 
   V8_EXPORT_PRIVATE static Handle<Map> CopyForPreventExtensions(
       Isolate* isolate, Handle<Map> map, PropertyAttributes attrs_to_add,
-      Handle<Symbol> transition_marker, const char* reason);
-
-  static Handle<Map> FixProxy(Handle<Map> map, InstanceType type, int size);
+      Handle<Symbol> transition_marker, const char* reason,
+      bool old_map_is_dictionary_elements_kind = false);
 
   // Maximal number of fast properties. Used to restrict the number of map
   // transitions to avoid an explosion in the number of maps for objects used as
@@ -742,7 +746,7 @@ class Map : public HeapObject {
       PropertyAttributes attributes);
   V8_EXPORT_PRIVATE static Handle<Map> ReconfigureExistingProperty(
       Isolate* isolate, Handle<Map> map, int descriptor, PropertyKind kind,
-      PropertyAttributes attributes);
+      PropertyAttributes attributes, PropertyConstness constness);
 
   inline void AppendDescriptor(Isolate* isolate, Descriptor* desc);
 
@@ -794,6 +798,8 @@ class Map : public HeapObject {
 
   inline bool CanTransition() const;
 
+  static Map GetStructMap(Isolate* isolate, InstanceType type);
+
 #define DECL_TESTER(Type, ...) inline bool Is##Type##Map() const;
   INSTANCE_TYPE_CHECKERS(DECL_TESTER)
 #undef DECL_TESTER
@@ -829,48 +835,26 @@ class Map : public HeapObject {
 
   static const int kMaxPreAllocatedPropertyFields = 255;
 
-  // Layout description.
-#define MAP_FIELDS(V)                                                       \
-  /* Raw data fields. */                                                    \
-  V(kInstanceSizeInWordsOffset, kUInt8Size)                                 \
-  V(kInObjectPropertiesStartOrConstructorFunctionIndexOffset, kUInt8Size)   \
-  V(kUsedOrUnusedInstanceSizeInWordsOffset, kUInt8Size)                     \
-  V(kVisitorIdOffset, kUInt8Size)                                           \
-  V(kInstanceTypeOffset, kUInt16Size)                                       \
-  V(kBitFieldOffset, kUInt8Size)                                            \
-  V(kBitField2Offset, kUInt8Size)                                           \
-  V(kBitField3Offset, kUInt32Size)                                          \
-  /* Adds padding to make tagged fields kTaggedSize-aligned. */             \
-  V(kOptionalPaddingOffset, OBJECT_POINTER_PADDING(kOptionalPaddingOffset)) \
-  /* Pointer fields. */                                                     \
-  V(kPointerFieldsBeginOffset, 0)                                           \
-  V(kPrototypeOffset, kTaggedSize)                                          \
-  V(kConstructorOrBackPointerOffset, kTaggedSize)                           \
-  V(kTransitionsOrPrototypeInfoOffset, kTaggedSize)                         \
-  V(kDescriptorsOffset, kTaggedSize)                                        \
-  V(kLayoutDescriptorOffset, FLAG_unbox_double_fields ? kTaggedSize : 0)    \
-  V(kDependentCodeOffset, kTaggedSize)                                      \
-  V(kPrototypeValidityCellOffset, kTaggedSize)                              \
-  V(kPointerFieldsEndOffset, 0)                                             \
-  /* Total size. */                                                         \
-  V(kSize, 0)
-
-  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, MAP_FIELDS)
-#undef MAP_FIELDS
+  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize,
+                                TORQUE_GENERATED_MAP_FIELDS)
 
   STATIC_ASSERT(kInstanceTypeOffset == Internals::kMapInstanceTypeOffset);
 
   class BodyDescriptor;
 
-  // Compares this map to another to see if they describe equivalent objects.
+  // Compares this map to another to see if they describe equivalent objects,
+  // up to the given |elements_kind|.
   // If |mode| is set to CLEAR_INOBJECT_PROPERTIES, |other| is treated as if
   // it had exactly zero inobject properties.
   // The "shared" flags of both this map and |other| are ignored.
-  bool EquivalentToForNormalization(const Map other,
+  bool EquivalentToForNormalization(const Map other, ElementsKind elements_kind,
                                     PropertyNormalizationMode mode) const;
+  inline bool EquivalentToForNormalization(
+      const Map other, PropertyNormalizationMode mode) const;
 
   // Returns true if given field is unboxed double.
   inline bool IsUnboxedDoubleField(FieldIndex index) const;
+  inline bool IsUnboxedDoubleField(Isolate* isolate, FieldIndex index) const;
 
   void PrintMapDetails(std::ostream& os);
 
@@ -958,14 +942,6 @@ class Map : public HeapObject {
   static Handle<Map> CopyNormalized(Isolate* isolate, Handle<Map> map,
                                     PropertyNormalizationMode mode);
 
-  // TODO(ishell): Move to MapUpdater.
-  static Handle<Map> CopyGeneralizeAllFields(Isolate* isolate, Handle<Map> map,
-                                             ElementsKind elements_kind,
-                                             int modify_index,
-                                             PropertyKind kind,
-                                             PropertyAttributes attributes,
-                                             const char* reason);
-
   void DeprecateTransitionTree(Isolate* isolate);
 
   void ReplaceDescriptors(Isolate* isolate, DescriptorArray new_descriptors,
@@ -987,17 +963,18 @@ class Map : public HeapObject {
       Isolate* isolate, FILE* file, const char* reason, int modify_index,
       int split, int descriptors, bool constant_to_field,
       Representation old_representation, Representation new_representation,
+      PropertyConstness old_constness, PropertyConstness new_constness,
       MaybeHandle<FieldType> old_field_type, MaybeHandle<Object> old_value,
       MaybeHandle<FieldType> new_field_type, MaybeHandle<Object> new_value);
 
   // Use the high-level instance_descriptors/SetInstanceDescriptors instead.
-  inline void set_synchronized_instance_descriptors(
-      DescriptorArray array, WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+  DECL_ACCESSORS(synchronized_instance_descriptors, DescriptorArray)
 
   static const int kFastPropertiesSoftLimit = 12;
   static const int kMaxFastProperties = 128;
 
   friend class MapUpdater;
+  friend class ConcurrentMarkingVisitor;
 
   OBJECT_CONSTRUCTORS(Map, HeapObject);
 };
@@ -1011,6 +988,7 @@ class NormalizedMapCache : public WeakFixedArray {
   static Handle<NormalizedMapCache> New(Isolate* isolate);
 
   V8_WARN_UNUSED_RESULT MaybeHandle<Map> Get(Handle<Map> fast_map,
+                                             ElementsKind elements_kind,
                                              PropertyNormalizationMode mode);
   void Set(Handle<Map> fast_map, Handle<Map> normalized_map);
 
@@ -1018,7 +996,7 @@ class NormalizedMapCache : public WeakFixedArray {
   DECL_VERIFIER(NormalizedMapCache)
 
  private:
-  friend bool HeapObject::IsNormalizedMapCache() const;
+  friend bool HeapObject::IsNormalizedMapCache(Isolate* isolate) const;
 
   static const int kEntries = 64;
 

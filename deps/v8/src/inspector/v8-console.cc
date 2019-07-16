@@ -124,7 +124,6 @@ class ConsoleHelper {
       return defaultValue;
     }
     v8::Local<v8::String> titleValue;
-    v8::TryCatch tryCatch(m_context->GetIsolate());
     if (!m_info[0]->ToString(m_context).ToLocal(&titleValue))
       return defaultValue;
     return toProtocolString(m_context->GetIsolate(), titleValue);
@@ -497,11 +496,11 @@ void V8Console::valuesCallback(const v8::FunctionCallbackInfo<v8::Value>& info,
   info.GetReturnValue().Set(values);
 }
 
-static void setFunctionBreakpoint(ConsoleHelper& helper, int sessionId,
-                                  v8::Local<v8::Function> function,
-                                  V8DebuggerAgentImpl::BreakpointSource source,
-                                  v8::Local<v8::String> condition,
-                                  bool enable) {
+static void setFunctionBreakpoint(
+    ConsoleHelper& helper,  // NOLINT(runtime/references)
+    int sessionId, v8::Local<v8::Function> function,
+    V8DebuggerAgentImpl::BreakpointSource source,
+    v8::Local<v8::String> condition, bool enable) {
   V8InspectorSessionImpl* session = helper.session(sessionId);
   if (session == nullptr) return;
   if (!session->debuggerAgent()->enabled()) return;

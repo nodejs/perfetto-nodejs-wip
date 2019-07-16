@@ -8,10 +8,10 @@
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
 #include "src/compiler/types.h"
-#include "src/handles-inl.h"
-#include "src/objects-inl.h"
+#include "src/handles/handles-inl.h"
 #include "src/objects/map.h"
 #include "src/objects/name.h"
+#include "src/objects/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -78,7 +78,7 @@ std::ostream& operator<<(std::ostream& os, FieldAccess const& access) {
   }
 #endif
   os << access.type << ", " << access.machine_type << ", "
-     << access.write_barrier_kind;
+     << access.write_barrier_kind << ", " << access.constness;
   if (FLAG_untrusted_code_mitigations) {
     os << ", " << access.load_sensitivity;
   }
@@ -113,7 +113,6 @@ size_t hash_value(ElementAccess const& access) {
                             access.machine_type);
 }
 
-
 std::ostream& operator<<(std::ostream& os, ElementAccess const& access) {
   os << access.base_is_tagged << ", " << access.header_size << ", "
      << access.type << ", " << access.machine_type << ", "
@@ -124,6 +123,20 @@ std::ostream& operator<<(std::ostream& os, ElementAccess const& access) {
   return os;
 }
 
+bool operator==(ObjectAccess const& lhs, ObjectAccess const& rhs) {
+  return lhs.machine_type == rhs.machine_type &&
+         lhs.write_barrier_kind == rhs.write_barrier_kind;
+}
+
+size_t hash_value(ObjectAccess const& access) {
+  return base::hash_combine(access.machine_type, access.write_barrier_kind);
+}
+
+std::ostream& operator<<(std::ostream& os, ObjectAccess const& access) {
+  os << access.machine_type << ", " << access.write_barrier_kind;
+  return os;
+}
+
 const FieldAccess& FieldAccessOf(const Operator* op) {
   DCHECK_NOT_NULL(op);
   DCHECK(op->opcode() == IrOpcode::kLoadField ||
@@ -131,12 +144,18 @@ const FieldAccess& FieldAccessOf(const Operator* op) {
   return OpParameter<FieldAccess>(op);
 }
 
-
 const ElementAccess& ElementAccessOf(const Operator* op) {
   DCHECK_NOT_NULL(op);
   DCHECK(op->opcode() == IrOpcode::kLoadElement ||
          op->opcode() == IrOpcode::kStoreElement);
   return OpParameter<ElementAccess>(op);
+}
+
+const ObjectAccess& ObjectAccessOf(const Operator* op) {
+  DCHECK_NOT_NULL(op);
+  DCHECK(op->opcode() == IrOpcode::kLoadFromObject ||
+         op->opcode() == IrOpcode::kStoreToObject);
+  return OpParameter<ObjectAccess>(op);
 }
 
 ExternalArrayType ExternalArrayTypeOf(const Operator* op) {
@@ -473,6 +492,18 @@ Handle<Map> FastMapParameterOf(const Operator* op) {
   return Handle<Map>::null();
 }
 
+std::ostream& operator<<(std::ostream& os, BigIntOperationHint hint) {
+  switch (hint) {
+    case BigIntOperationHint::kBigInt:
+      return os << "BigInt";
+  }
+  UNREACHABLE();
+}
+
+size_t hash_value(BigIntOperationHint hint) {
+  return static_cast<uint8_t>(hint);
+}
+
 std::ostream& operator<<(std::ostream& os, NumberOperationHint hint) {
   switch (hint) {
     case NumberOperationHint::kSignedSmall:
@@ -547,25 +578,23 @@ bool operator==(AllocateParameters const& lhs, AllocateParameters const& rhs) {
          lhs.type() == rhs.type();
 }
 
+const AllocateParameters& AllocateParametersOf(const Operator* op) {
+  DCHECK(op->opcode() == IrOpcode::kAllocate ||
+         op->opcode() == IrOpcode::kAllocateRaw);
+  return OpParameter<AllocateParameters>(op);
+}
+
 AllocationType AllocationTypeOf(const Operator* op) {
   if (op->opcode() == IrOpcode::kNewDoubleElements ||
       op->opcode() == IrOpcode::kNewSmiOrObjectElements) {
     return OpParameter<AllocationType>(op);
   }
-  DCHECK(op->opcode() == IrOpcode::kAllocate ||
-         op->opcode() == IrOpcode::kAllocateRaw);
-  return OpParameter<AllocateParameters>(op).allocation_type();
+  return AllocateParametersOf(op).allocation_type();
 }
 
 Type AllocateTypeOf(const Operator* op) {
   DCHECK_EQ(IrOpcode::kAllocate, op->opcode());
-  return OpParameter<AllocateParameters>(op).type();
-}
-
-UnicodeEncoding UnicodeEncodingOf(const Operator* op) {
-  DCHECK(op->opcode() == IrOpcode::kStringFromSingleCodePoint ||
-         op->opcode() == IrOpcode::kStringCodePointAt);
-  return OpParameter<UnicodeEncoding>(op);
+  return AllocateParametersOf(op).type();
 }
 
 AbortReason AbortReasonOf(const Operator* op) {
@@ -679,9 +708,11 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(NumberToUint32, Operator::kNoProperties, 1, 0)                 \
   V(NumberToUint8Clamped, Operator::kNoProperties, 1, 0)           \
   V(NumberSilenceNaN, Operator::kNoProperties, 1, 0)               \
+  V(BigIntNegate, Operator::kNoProperties, 1, 0)                   \
   V(StringConcat, Operator::kNoProperties, 3, 0)                   \
   V(StringToNumber, Operator::kNoProperties, 1, 0)                 \
   V(StringFromSingleCharCode, Operator::kNoProperties, 1, 0)       \
+  V(StringFromSingleCodePoint, Operator::kNoProperties, 1, 0)      \
   V(StringIndexOf, Operator::kNoProperties, 3, 0)                  \
   V(StringLength, Operator::kNoProperties, 1, 0)                   \
   V(StringToLowerCaseIntl, Operator::kNoProperties, 1, 0)          \
@@ -690,6 +721,7 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(PlainPrimitiveToNumber, Operator::kNoProperties, 1, 0)         \
   V(PlainPrimitiveToWord32, Operator::kNoProperties, 1, 0)         \
   V(PlainPrimitiveToFloat64, Operator::kNoProperties, 1, 0)        \
+  V(ChangeCompressedSignedToInt32, Operator::kNoProperties, 1, 0)  \
   V(ChangeTaggedSignedToInt32, Operator::kNoProperties, 1, 0)      \
   V(ChangeTaggedSignedToInt64, Operator::kNoProperties, 1, 0)      \
   V(ChangeTaggedToInt32, Operator::kNoProperties, 1, 0)            \
@@ -700,6 +732,7 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(ChangeCompressedToTaggedSigned, Operator::kNoProperties, 1, 0) \
   V(ChangeTaggedToCompressedSigned, Operator::kNoProperties, 1, 0) \
   V(ChangeFloat64ToTaggedPointer, Operator::kNoProperties, 1, 0)   \
+  V(ChangeInt31ToCompressedSigned, Operator::kNoProperties, 1, 0)  \
   V(ChangeInt31ToTaggedSigned, Operator::kNoProperties, 1, 0)      \
   V(ChangeInt32ToTagged, Operator::kNoProperties, 1, 0)            \
   V(ChangeInt64ToTagged, Operator::kNoProperties, 1, 0)            \
@@ -707,6 +740,8 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(ChangeUint64ToTagged, Operator::kNoProperties, 1, 0)           \
   V(ChangeTaggedToBit, Operator::kNoProperties, 1, 0)              \
   V(ChangeBitToTagged, Operator::kNoProperties, 1, 0)              \
+  V(TruncateBigIntToUint64, Operator::kNoProperties, 1, 0)         \
+  V(ChangeUint64ToBigInt, Operator::kNoProperties, 1, 0)           \
   V(TruncateTaggedToBit, Operator::kNoProperties, 1, 0)            \
   V(TruncateTaggedPointerToBit, Operator::kNoProperties, 1, 0)     \
   V(TruncateTaggedToWord32, Operator::kNoProperties, 1, 0)         \
@@ -736,6 +771,7 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(ObjectIsInteger, Operator::kNoProperties, 1, 0)                \
   V(ConvertTaggedHoleToUndefined, Operator::kNoProperties, 1, 0)   \
   V(SameValue, Operator::kCommutative, 2, 0)                       \
+  V(SameValueNumbersOnly, Operator::kCommutative, 2, 0)            \
   V(NumberSameValue, Operator::kCommutative, 2, 0)                 \
   V(ReferenceEqual, Operator::kCommutative, 2, 0)                  \
   V(StringEqual, Operator::kCommutative, 2, 0)                     \
@@ -745,9 +781,12 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(NewConsString, Operator::kNoProperties, 3, 0)                  \
   V(PoisonIndex, Operator::kNoProperties, 1, 0)
 
-#define EFFECT_DEPENDENT_OP_LIST(V)                  \
-  V(StringCharCodeAt, Operator::kNoProperties, 2, 1) \
-  V(StringSubstring, Operator::kNoProperties, 3, 1)  \
+#define EFFECT_DEPENDENT_OP_LIST(V)                       \
+  V(BigIntAdd, Operator::kNoProperties, 2, 1)             \
+  V(StringCharCodeAt, Operator::kNoProperties, 2, 1)      \
+  V(StringCodePointAt, Operator::kNoProperties, 2, 1)     \
+  V(StringFromCodePointAt, Operator::kNoProperties, 2, 1) \
+  V(StringSubstring, Operator::kNoProperties, 3, 1)       \
   V(DateNow, Operator::kNoProperties, 0, 1)
 
 #define SPECULATIVE_NUMBER_BINOP_LIST(V)      \
@@ -777,6 +816,7 @@ bool operator==(CheckMinusZeroParameters const& lhs,
   V(CheckNumber, 1, 1)                      \
   V(CheckSmi, 1, 1)                         \
   V(CheckString, 1, 1)                      \
+  V(CheckBigInt, 1, 1)                      \
   V(CheckedInt32ToTaggedSigned, 1, 1)       \
   V(CheckedInt64ToInt32, 1, 1)              \
   V(CheckedInt64ToTaggedSigned, 1, 1)       \
@@ -870,32 +910,6 @@ struct SimplifiedOperatorGlobalCache final {
   CheckIfOperator<DeoptimizeReason::k##Name> kCheckIf##Name;
   DEOPTIMIZE_REASON_LIST(CHECK_IF)
 #undef CHECK_IF
-
-  template <UnicodeEncoding kEncoding>
-  struct StringCodePointAtOperator final : public Operator1<UnicodeEncoding> {
-    StringCodePointAtOperator()
-        : Operator1<UnicodeEncoding>(IrOpcode::kStringCodePointAt,
-                                     Operator::kFoldable | Operator::kNoThrow,
-                                     "StringCodePointAt", 2, 1, 1, 1, 1, 0,
-                                     kEncoding) {}
-  };
-  StringCodePointAtOperator<UnicodeEncoding::UTF16>
-      kStringCodePointAtOperatorUTF16;
-  StringCodePointAtOperator<UnicodeEncoding::UTF32>
-      kStringCodePointAtOperatorUTF32;
-
-  template <UnicodeEncoding kEncoding>
-  struct StringFromSingleCodePointOperator final
-      : public Operator1<UnicodeEncoding> {
-    StringFromSingleCodePointOperator()
-        : Operator1<UnicodeEncoding>(
-              IrOpcode::kStringFromSingleCodePoint, Operator::kPure,
-              "StringFromSingleCodePoint", 1, 0, 0, 1, 0, 0, kEncoding) {}
-  };
-  StringFromSingleCodePointOperator<UnicodeEncoding::UTF16>
-      kStringFromSingleCodePointOperatorUTF16;
-  StringFromSingleCodePointOperator<UnicodeEncoding::UTF32>
-      kStringFromSingleCodePointOperatorUTF32;
 
   struct FindOrderedHashMapEntryOperator final : public Operator {
     FindOrderedHashMapEntryOperator()
@@ -1103,39 +1117,6 @@ struct SimplifiedOperatorGlobalCache final {
   };
   LoadFieldByIndexOperator kLoadFieldByIndex;
 
-  struct LoadStackArgumentOperator final : public Operator {
-    LoadStackArgumentOperator()
-        : Operator(                          // --
-              IrOpcode::kLoadStackArgument,  // opcode
-              Operator::kNoDeopt | Operator::kNoThrow |
-                  Operator::kNoWrite,  // flags
-              "LoadStackArgument",     // name
-              2, 1, 1, 1, 1, 0) {}     // counts
-  };
-  LoadStackArgumentOperator kLoadStackArgument;
-
-  struct LoadMessageOperator final : public Operator {
-    LoadMessageOperator()
-        : Operator(                    // --
-              IrOpcode::kLoadMessage,  // opcode
-              Operator::kNoDeopt | Operator::kNoThrow |
-                  Operator::kNoWrite,  // flags
-              "LoadMessage",           // name
-              1, 1, 1, 1, 1, 0) {}     // counts
-  };
-  LoadMessageOperator kLoadMessage;
-
-  struct StoreMessageOperator final : public Operator {
-    StoreMessageOperator()
-        : Operator(                     // --
-              IrOpcode::kStoreMessage,  // opcode
-              Operator::kNoDeopt | Operator::kNoThrow |
-                  Operator::kNoRead,  // flags
-              "StoreMessage",         // name
-              2, 1, 1, 0, 1, 0) {}    // counts
-  };
-  StoreMessageOperator kStoreMessage;
-
 #define SPECULATIVE_NUMBER_BINOP(Name)                                      \
   template <NumberOperationHint kHint>                                      \
   struct Name##Operator final : public Operator1<NumberOperationHint> {     \
@@ -1243,6 +1224,20 @@ const Operator* SimplifiedOperatorBuilder::RuntimeAbort(AbortReason reason) {
       "RuntimeAbort",                           // name
       0, 1, 1, 0, 1, 0,                         // counts
       static_cast<int>(reason));                // parameter
+}
+
+const Operator* SimplifiedOperatorBuilder::BigIntAsUintN(int bits) {
+  CHECK(0 <= bits && bits <= 64);
+
+  return new (zone()) Operator1<int>(IrOpcode::kBigIntAsUintN, Operator::kPure,
+                                     "BigIntAsUintN", 1, 0, 0, 1, 0, 0, bits);
+}
+
+const Operator* SimplifiedOperatorBuilder::AssertType(Type type) {
+  DCHECK(type.IsRange());
+  return new (zone()) Operator1<Type>(IrOpcode::kAssertType,
+                                      Operator::kNoThrow | Operator::kNoDeopt,
+                                      "AssertType", 1, 0, 0, 1, 0, 0, type);
 }
 
 const Operator* SimplifiedOperatorBuilder::CheckIf(
@@ -1405,7 +1400,7 @@ const Operator* SimplifiedOperatorBuilder::CompareMaps(
   DCHECK_LT(0, maps.size());
   return new (zone()) Operator1<ZoneHandleSet<Map>>(  // --
       IrOpcode::kCompareMaps,                         // opcode
-      Operator::kEliminatable,                        // flags
+      Operator::kNoThrow | Operator::kNoWrite,        // flags
       "CompareMaps",                                  // name
       1, 1, 1, 1, 1, 0,                               // counts
       maps);                                          // parameter
@@ -1440,6 +1435,21 @@ const Operator* SimplifiedOperatorBuilder::CheckFloat64Hole(
       IrOpcode::kCheckFloat64Hole, Operator::kFoldable | Operator::kNoThrow,
       "CheckFloat64Hole", 1, 1, 1, 1, 1, 0,
       CheckFloat64HoleParameters(mode, feedback));
+}
+
+const Operator* SimplifiedOperatorBuilder::SpeculativeBigIntAdd(
+    BigIntOperationHint hint) {
+  return new (zone()) Operator1<BigIntOperationHint>(
+      IrOpcode::kSpeculativeBigIntAdd, Operator::kFoldable | Operator::kNoThrow,
+      "SpeculativeBigIntAdd", 2, 1, 1, 1, 1, 0, hint);
+}
+
+const Operator* SimplifiedOperatorBuilder::SpeculativeBigIntNegate(
+    BigIntOperationHint hint) {
+  return new (zone()) Operator1<BigIntOperationHint>(
+      IrOpcode::kSpeculativeBigIntNegate,
+      Operator::kFoldable | Operator::kNoThrow, "SpeculativeBigIntNegate", 1, 1,
+      1, 1, 1, 0, hint);
 }
 
 const Operator* SimplifiedOperatorBuilder::SpeculativeToNumber(
@@ -1490,7 +1500,7 @@ const Operator* SimplifiedOperatorBuilder::TransitionElementsKind(
     ElementsTransition transition) {
   return new (zone()) Operator1<ElementsTransition>(  // --
       IrOpcode::kTransitionElementsKind,              // opcode
-      Operator::kNoDeopt | Operator::kNoThrow,        // flags
+      Operator::kNoThrow,                             // flags
       "TransitionElementsKind",                       // name
       1, 1, 1, 0, 1, 0,                               // counts
       transition);                                    // parameter
@@ -1650,33 +1660,18 @@ const Operator* SimplifiedOperatorBuilder::Allocate(Type type,
 }
 
 const Operator* SimplifiedOperatorBuilder::AllocateRaw(
-    Type type, AllocationType allocation) {
+    Type type, AllocationType allocation,
+    AllowLargeObjects allow_large_objects) {
+  // We forbid optimized allocations to allocate in a different generation than
+  // requested.
+  DCHECK(!(allow_large_objects == AllowLargeObjects::kTrue &&
+           allocation == AllocationType::kYoung &&
+           !FLAG_young_generation_large_objects));
   return new (zone()) Operator1<AllocateParameters>(
       IrOpcode::kAllocateRaw,
       Operator::kNoDeopt | Operator::kNoThrow | Operator::kNoWrite,
-      "AllocateRaw", 1, 1, 1, 1, 1, 1, AllocateParameters(type, allocation));
-}
-
-const Operator* SimplifiedOperatorBuilder::StringCodePointAt(
-    UnicodeEncoding encoding) {
-  switch (encoding) {
-    case UnicodeEncoding::UTF16:
-      return &cache_.kStringCodePointAtOperatorUTF16;
-    case UnicodeEncoding::UTF32:
-      return &cache_.kStringCodePointAtOperatorUTF32;
-  }
-  UNREACHABLE();
-}
-
-const Operator* SimplifiedOperatorBuilder::StringFromSingleCodePoint(
-    UnicodeEncoding encoding) {
-  switch (encoding) {
-    case UnicodeEncoding::UTF16:
-      return &cache_.kStringFromSingleCodePointOperatorUTF16;
-    case UnicodeEncoding::UTF32:
-      return &cache_.kStringFromSingleCodePointOperatorUTF32;
-  }
-  UNREACHABLE();
+      "AllocateRaw", 1, 1, 1, 1, 1, 1,
+      AllocateParameters(type, allocation, allow_large_objects));
 }
 
 #define SPECULATIVE_NUMBER_BINOP(Name)                                        \
@@ -1705,9 +1700,11 @@ SPECULATIVE_NUMBER_BINOP_LIST(SPECULATIVE_NUMBER_BINOP)
   V(LoadElement, ElementAccess, Operator::kNoWrite, 2, 1, 1)             \
   V(StoreElement, ElementAccess, Operator::kNoRead, 3, 1, 0)             \
   V(LoadTypedElement, ExternalArrayType, Operator::kNoWrite, 4, 1, 1)    \
+  V(LoadFromObject, ObjectAccess, Operator::kNoWrite, 2, 1, 1)           \
   V(StoreTypedElement, ExternalArrayType, Operator::kNoRead, 5, 1, 0)    \
-  V(LoadDataViewElement, ExternalArrayType, Operator::kNoWrite, 5, 1, 1) \
-  V(StoreDataViewElement, ExternalArrayType, Operator::kNoRead, 6, 1, 0)
+  V(StoreToObject, ObjectAccess, Operator::kNoRead, 3, 1, 0)             \
+  V(LoadDataViewElement, ExternalArrayType, Operator::kNoWrite, 4, 1, 1) \
+  V(StoreDataViewElement, ExternalArrayType, Operator::kNoRead, 5, 1, 0)
 
 #define ACCESS(Name, Type, properties, value_input_count, control_input_count, \
                output_count)                                                   \
@@ -1720,18 +1717,6 @@ SPECULATIVE_NUMBER_BINOP_LIST(SPECULATIVE_NUMBER_BINOP)
   }
 ACCESS_OP_LIST(ACCESS)
 #undef ACCESS
-
-const Operator* SimplifiedOperatorBuilder::LoadMessage() {
-  return &cache_.kLoadMessage;
-}
-
-const Operator* SimplifiedOperatorBuilder::StoreMessage() {
-  return &cache_.kStoreMessage;
-}
-
-const Operator* SimplifiedOperatorBuilder::LoadStackArgument() {
-  return &cache_.kLoadStackArgument;
-}
 
 const Operator* SimplifiedOperatorBuilder::TransitionAndStoreElement(
     Handle<Map> double_map, Handle<Map> fast_map) {

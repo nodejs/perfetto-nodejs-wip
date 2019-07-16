@@ -4,18 +4,18 @@
 
 #include <vector>
 
-#include "src/assembler.h"
 #include "src/base/overflowing-math.h"
+#include "src/codegen/assembler.h"
+#include "src/codegen/machine-type.h"
+#include "src/codegen/register-configuration.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/raw-machine-assembler.h"
-#include "src/machine-type.h"
-#include "src/objects-inl.h"
-#include "src/register-configuration.h"
+#include "src/objects/objects-inl.h"
 #include "src/wasm/wasm-linkage.h"
 
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/codegen-tester.h"
-#include "test/cctest/compiler/graph-builder-tester.h"
+#include "test/cctest/compiler/graph-and-builders.h"
 #include "test/cctest/compiler/value-helper.h"
 
 namespace v8 {
@@ -24,8 +24,8 @@ namespace compiler {
 namespace test_run_native_calls {
 
 namespace {
-typedef float float32;
-typedef double float64;
+using float32 = float;
+using float64 = double;
 
 // Picks a representative pair of integers from the given range.
 // If there are less than {max_pairs} possible pairs, do them all, otherwise try
@@ -327,28 +327,34 @@ class ArgsBuffer {
     return kTypes;
   }
 
-  Node* MakeConstant(RawMachineAssembler& raw, int32_t value) {
+  Node* MakeConstant(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                     int32_t value) {
     return raw.Int32Constant(value);
   }
 
-  Node* MakeConstant(RawMachineAssembler& raw, int64_t value) {
+  Node* MakeConstant(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                     int64_t value) {
     return raw.Int64Constant(value);
   }
 
-  Node* MakeConstant(RawMachineAssembler& raw, float32 value) {
+  Node* MakeConstant(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                     float32 value) {
     return raw.Float32Constant(value);
   }
 
-  Node* MakeConstant(RawMachineAssembler& raw, float64 value) {
+  Node* MakeConstant(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                     float64 value) {
     return raw.Float64Constant(value);
   }
 
-  Node* LoadInput(RawMachineAssembler& raw, Node* base, int index) {
+  Node* LoadInput(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                  Node* base, int index) {
     Node* offset = raw.Int32Constant(index * sizeof(CType));
     return raw.Load(MachineTypeForC<CType>(), base, offset);
   }
 
-  Node* StoreOutput(RawMachineAssembler& raw, Node* value) {
+  Node* StoreOutput(RawMachineAssembler& raw,  // NOLINT(runtime/references)
+                    Node* value) {
     Node* base = raw.PointerConstant(&output);
     Node* offset = raw.Int32Constant(0);
     return raw.Store(MachineTypeForC<CType>().representation(), base, offset,
@@ -710,9 +716,9 @@ static uint32_t coeff[] = {1,  2,  3,  5,  7,   11,  13,  17,  19, 23, 29,
                            31, 37, 41, 43, 47,  53,  59,  61,  67, 71, 73,
                            79, 83, 89, 97, 101, 103, 107, 109, 113};
 
-
-static void Build_Int32_WeightedSum(CallDescriptor* desc,
-                                    RawMachineAssembler& raw) {
+static void Build_Int32_WeightedSum(
+    CallDescriptor* desc,
+    RawMachineAssembler& raw) {  // NOLINT(runtime/references)
   Node* result = raw.Int32Constant(0);
   for (int i = 0; i < ParamCount(desc); i++) {
     Node* term = raw.Int32Mul(raw.Parameter(i), raw.Int32Constant(coeff[i]));
@@ -720,7 +726,6 @@ static void Build_Int32_WeightedSum(CallDescriptor* desc,
   }
   raw.Return(result);
 }
-
 
 static int32_t Compute_Int32_WeightedSum(CallDescriptor* desc, int32_t* input) {
   uint32_t result = 0;
@@ -767,12 +772,12 @@ TEST_INT32_WEIGHTEDSUM(11)
 TEST_INT32_WEIGHTEDSUM(17)
 TEST_INT32_WEIGHTEDSUM(19)
 
-
 template <int which>
-static void Build_Select(CallDescriptor* desc, RawMachineAssembler& raw) {
+static void Build_Select(
+    CallDescriptor* desc,
+    RawMachineAssembler& raw) {  // NOLINT(runtime/references)
   raw.Return(raw.Parameter(which));
 }
-
 
 template <typename CType, int which>
 static CType Compute_Select(CallDescriptor* desc, CType* inputs) {
@@ -943,10 +948,10 @@ TEST(Float64Select_stack_params_return_reg) {
   }
 }
 
-
 template <typename CType, int which>
-static void Build_Select_With_Call(CallDescriptor* desc,
-                                   RawMachineAssembler& raw) {
+static void Build_Select_With_Call(
+    CallDescriptor* desc,
+    RawMachineAssembler& raw) {  // NOLINT(runtime/references)
   Handle<Code> inner = Handle<Code>::null();
   int num_params = ParamCount(desc);
   CHECK_LE(num_params, kMaxParamCount);
@@ -976,7 +981,6 @@ static void Build_Select_With_Call(CallDescriptor* desc,
     raw.Return(call);
   }
 }
-
 
 TEST(Float64StackParamsToStackParams) {
   int rarray[] = {GetRegConfig()->GetAllocatableDoubleCode(0)};

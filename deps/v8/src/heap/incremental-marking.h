@@ -5,10 +5,10 @@
 #ifndef V8_HEAP_INCREMENTAL_MARKING_H_
 #define V8_HEAP_INCREMENTAL_MARKING_H_
 
-#include "src/cancelable-task.h"
 #include "src/heap/heap.h"
 #include "src/heap/incremental-marking-job.h"
 #include "src/heap/mark-compact.h"
+#include "src/tasks/cancelable-task.h"
 
 namespace v8 {
 namespace internal {
@@ -79,9 +79,11 @@ class V8_EXPORT_PRIVATE IncrementalMarking {
   static constexpr double kMaxStepSizeInMs = 5;
 
 #ifndef DEBUG
-  static const intptr_t kActivationThreshold = 8 * MB;
+  static constexpr size_t kV8ActivationThreshold = 8 * MB;
+  static constexpr size_t kGlobalActivationThreshold = 16 * MB;
 #else
-  static const intptr_t kActivationThreshold = 0;
+  static constexpr size_t kV8ActivationThreshold = 0;
+  static constexpr size_t kGlobalActivationThreshold = 0;
 #endif
 
 #ifdef V8_CONCURRENT_MARKING
@@ -184,7 +186,7 @@ class V8_EXPORT_PRIVATE IncrementalMarking {
   bool ShouldDoEmbedderStep();
   StepResult EmbedderStep(double duration);
 
-  inline void RestartIfNotMarking();
+  V8_INLINE void RestartIfNotMarking();
 
   // {raw_obj} and {slot_address} are raw Address values instead of a
   // HeapObject and a MaybeObjectSlot because this is called from
@@ -198,22 +200,22 @@ class V8_EXPORT_PRIVATE IncrementalMarking {
   // No slots in white objects should be recorded, as some slots are typed and
   // cannot be interpreted correctly if the underlying object does not survive
   // the incremental cycle (stays white).
-  V8_INLINE bool BaseRecordWrite(HeapObject obj, Object value);
-  V8_INLINE void RecordWrite(HeapObject obj, ObjectSlot slot, Object value);
-  V8_INLINE void RecordMaybeWeakWrite(HeapObject obj, MaybeObjectSlot slot,
-                                      MaybeObject value);
+  V8_INLINE bool BaseRecordWrite(HeapObject obj, HeapObject value);
+  template <typename TSlot>
+  V8_INLINE void RecordWrite(HeapObject obj, TSlot slot,
+                             typename TSlot::TObject value);
   void RevisitObject(HeapObject obj);
   // Ensures that all descriptors int range [0, number_of_own_descripts)
   // are visited.
   void VisitDescriptors(HeapObject host, DescriptorArray array,
                         int number_of_own_descriptors);
 
-  void RecordWriteSlow(HeapObject obj, HeapObjectSlot slot, Object value);
+  void RecordWriteSlow(HeapObject obj, HeapObjectSlot slot, HeapObject value);
   void RecordWriteIntoCode(Code host, RelocInfo* rinfo, HeapObject value);
 
   // Returns true if the function succeeds in transitioning the object
   // from white to grey.
-  bool WhiteToGreyAndPush(HeapObject obj);
+  V8_INLINE bool WhiteToGreyAndPush(HeapObject obj);
 
   // This function is used to color the object black before it undergoes an
   // unsafe layout change. This is a part of synchronization protocol with
@@ -248,17 +250,19 @@ class V8_EXPORT_PRIVATE IncrementalMarking {
   // generation.
   void EnsureBlackAllocated(Address allocated, size_t size);
 
+  bool IsBelowActivationThresholds() const;
+
  private:
   class Observer : public AllocationObserver {
    public:
-    Observer(IncrementalMarking& incremental_marking, intptr_t step_size)
+    Observer(IncrementalMarking* incremental_marking, intptr_t step_size)
         : AllocationObserver(step_size),
           incremental_marking_(incremental_marking) {}
 
     void Step(int bytes_allocated, Address, size_t) override;
 
    private:
-    IncrementalMarking& incremental_marking_;
+    IncrementalMarking* incremental_marking_;
   };
 
   void StartMarking();
@@ -284,8 +288,6 @@ class V8_EXPORT_PRIVATE IncrementalMarking {
   V8_INLINE intptr_t ProcessMarkingWorklist(
       intptr_t bytes_to_process,
       ForceCompletionAction completion = DO_NOT_FORCE_COMPLETION);
-
-  V8_INLINE bool IsFixedArrayWithProgressBar(HeapObject object);
 
   // Visits the object and returns its size.
   V8_INLINE int VisitObject(Map map, HeapObject obj);

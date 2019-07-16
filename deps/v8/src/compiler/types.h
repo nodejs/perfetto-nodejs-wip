@@ -6,12 +6,12 @@
 #define V8_COMPILER_TYPES_H_
 
 #include "src/base/compiler-specific.h"
-#include "src/compiler/js-heap-broker.h"
-#include "src/conversions.h"
-#include "src/globals.h"
-#include "src/handles.h"
-#include "src/objects.h"
-#include "src/ostreams.h"
+#include "src/common/globals.h"
+#include "src/compiler/heap-refs.h"
+#include "src/handles/handles.h"
+#include "src/numbers/conversions.h"
+#include "src/objects/objects.h"
+#include "src/utils/ostreams.h"
 
 namespace v8 {
 namespace internal {
@@ -220,6 +220,7 @@ namespace compiler {
   INTERNAL_BITSET_TYPE_LIST(V) \
   PROPER_BITSET_TYPE_LIST(V)
 
+class JSHeapBroker;
 class HeapConstantType;
 class OtherNumberConstantType;
 class TupleType;

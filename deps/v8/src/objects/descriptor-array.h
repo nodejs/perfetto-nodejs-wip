@@ -5,10 +5,10 @@
 #ifndef V8_OBJECTS_DESCRIPTOR_ARRAY_H_
 #define V8_OBJECTS_DESCRIPTOR_ARRAY_H_
 
-#include "src/objects.h"
 #include "src/objects/fixed-array.h"
+#include "src/objects/objects.h"
 #include "src/objects/struct.h"
-#include "src/utils.h"
+#include "src/utils/utils.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -22,21 +22,11 @@ class Handle;
 class Isolate;
 
 // An EnumCache is a pair used to hold keys and indices caches.
-class EnumCache : public Struct {
+class EnumCache : public TorqueGeneratedEnumCache<EnumCache, Struct> {
  public:
-  DECL_ACCESSORS(keys, FixedArray)
-  DECL_ACCESSORS(indices, FixedArray)
-
-  DECL_CAST(EnumCache)
-
-  DECL_PRINTER(EnumCache)
   DECL_VERIFIER(EnumCache)
 
-  // Layout description.
-  DEFINE_FIELD_OFFSET_CONSTANTS(Struct::kHeaderSize,
-                                TORQUE_GENERATED_ENUM_CACHE_FIELDS)
-
-  OBJECT_CONSTRUCTORS(EnumCache, Struct);
+  TQ_OBJECT_CONSTRUCTORS(EnumCache)
 };
 
 // A DescriptorArray is a custom array that holds instance descriptors.
@@ -73,14 +63,18 @@ class DescriptorArray : public HeapObject {
 
   // Accessors for fetching instance descriptor at descriptor number.
   inline Name GetKey(int descriptor_number) const;
+  inline Name GetKey(Isolate* isolate, int descriptor_number) const;
   inline Object GetStrongValue(int descriptor_number);
-  inline void SetValue(int descriptor_number, Object value);
+  inline Object GetStrongValue(Isolate* isolate, int descriptor_number);
   inline MaybeObject GetValue(int descriptor_number);
+  inline MaybeObject GetValue(Isolate* isolate, int descriptor_number);
   inline PropertyDetails GetDetails(int descriptor_number);
   inline int GetFieldIndex(int descriptor_number);
   inline FieldType GetFieldType(int descriptor_number);
+  inline FieldType GetFieldType(Isolate* isolate, int descriptor_number);
 
   inline Name GetSortedKey(int descriptor_number);
+  inline Name GetSortedKey(Isolate* isolate, int descriptor_number);
   inline int GetSortedKeyIndex(int descriptor_number);
   inline void SetSortedKey(int pointer, int descriptor_number);
 
@@ -139,20 +133,9 @@ class DescriptorArray : public HeapObject {
   static const int kNotFound = -1;
 
   // Layout description.
-#define DESCRIPTOR_ARRAY_FIELDS(V)                    \
-  V(kNumberOfAllDescriptorsOffset, kUInt16Size)       \
-  V(kNumberOfDescriptorsOffset, kUInt16Size)          \
-  V(kRawNumberOfMarkedDescriptorsOffset, kUInt16Size) \
-  V(kFiller16BitsOffset, kUInt16Size)                 \
-  V(kPointersStartOffset, 0)                          \
-  V(kEnumCacheOffset, kTaggedSize)                    \
-  V(kHeaderSize, 0)
-
   DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize,
-                                DESCRIPTOR_ARRAY_FIELDS)
-#undef DESCRIPTOR_ARRAY_FIELDS
-
-  STATIC_ASSERT(IsAligned(kPointersStartOffset, kTaggedSize));
+                                TORQUE_GENERATED_DESCRIPTOR_ARRAY_FIELDS)
+  STATIC_ASSERT(IsAligned(kStartOfWeakFieldsOffset, kTaggedSize));
   STATIC_ASSERT(IsAligned(kHeaderSize, kTaggedSize));
 
   // Garbage collection support.
@@ -164,17 +147,21 @@ class DescriptorArray : public HeapObject {
                                           int16_t number_of_marked_descriptors);
 
   static constexpr int SizeFor(int number_of_all_descriptors) {
-    return offset(number_of_all_descriptors * kEntrySize);
+    return OffsetOfDescriptorAt(number_of_all_descriptors);
   }
   static constexpr int OffsetOfDescriptorAt(int descriptor) {
-    return offset(descriptor * kEntrySize);
+    return kHeaderSize + descriptor * kEntrySize * kTaggedSize;
   }
   inline ObjectSlot GetFirstPointerSlot();
   inline ObjectSlot GetDescriptorSlot(int descriptor);
-  inline ObjectSlot GetKeySlot(int descriptor);
-  inline MaybeObjectSlot GetValueSlot(int descriptor);
 
-  using BodyDescriptor = FlexibleWeakBodyDescriptor<kPointersStartOffset>;
+  static_assert(kEndOfStrongFieldsOffset == kStartOfWeakFieldsOffset,
+                "Weak fields follow strong fields.");
+  static_assert(kEndOfWeakFieldsOffset == kHeaderSize,
+                "Weak fields extend up to the end of the header.");
+  // We use this visitor to also visitor to also visit the enum_cache, which is
+  // the only tagged field in the header, and placed at the end of the header.
+  using BodyDescriptor = FlexibleWeakBodyDescriptor<kStartOfStrongFieldsOffset>;
 
   // Layout of descriptor.
   // Naming is consistent with Dictionary classes for easy templating.
@@ -182,6 +169,10 @@ class DescriptorArray : public HeapObject {
   static const int kEntryDetailsIndex = 1;
   static const int kEntryValueIndex = 2;
   static const int kEntrySize = 3;
+
+  static const int kEntryKeyOffset = kEntryKeyIndex * kTaggedSize;
+  static const int kEntryDetailsOffset = kEntryDetailsIndex * kTaggedSize;
+  static const int kEntryValueOffset = kEntryValueIndex * kTaggedSize;
 
   // Print all the descriptors.
   void PrintDescriptors(std::ostream& os);
@@ -212,15 +203,16 @@ class DescriptorArray : public HeapObject {
     return (descriptor_number * kEntrySize) + kEntryValueIndex;
   }
 
+  using EntryKeyField = TaggedField<HeapObject, kEntryKeyOffset>;
+  using EntryDetailsField = TaggedField<Smi, kEntryDetailsOffset>;
+  using EntryValueField = TaggedField<MaybeObject, kEntryValueOffset>;
+
  private:
   DECL_INT16_ACCESSORS(filler16bits)
-  // Low-level per-element accessors.
-  static constexpr int offset(int index) {
-    return kHeaderSize + index * kTaggedSize;
-  }
-  inline int length() const;
-  inline MaybeObject get(int index) const;
-  inline void set(int index, MaybeObject value);
+
+  inline void SetKey(int descriptor_number, Name key);
+  inline void SetValue(int descriptor_number, MaybeObject value);
+  inline void SetDetails(int descriptor_number, PropertyDetails details);
 
   // Transfer a complete descriptor from the src descriptor array to this
   // descriptor array.

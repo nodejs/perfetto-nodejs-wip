@@ -7,13 +7,13 @@
 #include <iomanip>
 
 #include "src/base/adapters.h"
-#include "src/bit-vector.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/control-equivalence.h"
 #include "src/compiler/graph.h"
 #include "src/compiler/node-marker.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/node.h"
+#include "src/utils/bit-vector.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {
@@ -134,7 +134,6 @@ void Scheduler::UpdatePlacement(Node* node, Placement placement) {
     case IrOpcode::kParameter:
       // Parameters are fixed once and for all.
       UNREACHABLE();
-      break;
     case IrOpcode::kPhi:
     case IrOpcode::kEffectPhi: {
       // Phis and effect phis are coupled to their respective blocks.
@@ -729,11 +728,10 @@ class SpecialRPONumberer : public ZoneObject {
     }
   };
 
-  int Push(ZoneVector<SpecialRPOStackFrame>& stack, int depth,
-           BasicBlock* child, int unvisited) {
+  int Push(int depth, BasicBlock* child, int unvisited) {
     if (child->rpo_number() == unvisited) {
-      stack[depth].block = child;
-      stack[depth].index = 0;
+      stack_[depth].block = child;
+      stack_[depth].index = 0;
       child->set_rpo_number(kBlockOnStack);
       return depth + 1;
     }
@@ -781,7 +779,7 @@ class SpecialRPONumberer : public ZoneObject {
     DCHECK_LT(previous_block_count_, schedule_->BasicBlockCount());
     stack_.resize(schedule_->BasicBlockCount() - previous_block_count_);
     previous_block_count_ = schedule_->BasicBlockCount();
-    int stack_depth = Push(stack_, 0, entry, kBlockUnvisited1);
+    int stack_depth = Push(0, entry, kBlockUnvisited1);
     int num_loops = static_cast<int>(loops_.size());
 
     while (stack_depth > 0) {
@@ -803,7 +801,7 @@ class SpecialRPONumberer : public ZoneObject {
         } else {
           // Push the successor onto the stack.
           DCHECK_EQ(kBlockUnvisited1, succ->rpo_number());
-          stack_depth = Push(stack_, stack_depth, succ, kBlockUnvisited1);
+          stack_depth = Push(stack_depth, succ, kBlockUnvisited1);
         }
       } else {
         // Finished with all successors; pop the stack and add the block.
@@ -828,7 +826,7 @@ class SpecialRPONumberer : public ZoneObject {
       // edges that lead out of loops. Visits each block once, but linking loop
       // sections together is linear in the loop size, so overall is
       // O(|B| + max(loop_depth) * max(|loop|))
-      stack_depth = Push(stack_, 0, entry, kBlockUnvisited2);
+      stack_depth = Push(0, entry, kBlockUnvisited2);
       while (stack_depth > 0) {
         SpecialRPOStackFrame* frame = &stack_[stack_depth - 1];
         BasicBlock* block = frame->block;
@@ -875,7 +873,7 @@ class SpecialRPONumberer : public ZoneObject {
             loop->AddOutgoing(zone_, succ);
           } else {
             // Push the successor onto the stack.
-            stack_depth = Push(stack_, stack_depth, succ, kBlockUnvisited2);
+            stack_depth = Push(stack_depth, succ, kBlockUnvisited2);
             if (HasLoopNumber(succ)) {
               // Push the inner loop onto the loop stack.
               DCHECK(GetLoopNumber(succ) < num_loops);
@@ -959,8 +957,9 @@ class SpecialRPONumberer : public ZoneObject {
   }
 
   // Computes loop membership from the backedges of the control flow graph.
-  void ComputeLoopInfo(ZoneVector<SpecialRPOStackFrame>& queue,
-                       size_t num_loops, ZoneVector<Backedge>* backedges) {
+  void ComputeLoopInfo(
+      ZoneVector<SpecialRPOStackFrame>& queue,  // NOLINT(runtime/references)
+      size_t num_loops, ZoneVector<Backedge>* backedges) {
     // Extend existing loop membership vectors.
     for (LoopInfo& loop : loops_) {
       loop.members->Resize(static_cast<int>(schedule_->BasicBlockCount()),

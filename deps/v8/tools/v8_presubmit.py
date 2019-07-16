@@ -65,7 +65,6 @@ LINT_RULES = """
 -build/include_what_you_use
 -readability/fn_size
 -readability/multiline_comment
--runtime/references
 -whitespace/comments
 """.split()
 
@@ -476,7 +475,10 @@ class SourceProcessor(SourceFileProcessor):
                        'zlib.js']
   IGNORE_TABS = IGNORE_COPYRIGHTS + ['unicode-test.js', 'html-comments.js']
 
-  IGNORE_COPYRIGHTS_DIRECTORY = "test/test262/local-tests"
+  IGNORE_COPYRIGHTS_DIRECTORIES = [
+      "test/test262/local-tests",
+      "test/mjsunit/wasm/bulk-memory-spec",
+  ]
 
   def EndOfDeclaration(self, line):
     return line == "}" or line == "};"
@@ -494,7 +496,8 @@ class SourceProcessor(SourceFileProcessor):
         print("%s contains tabs" % name)
         result = False
     if not base in SourceProcessor.IGNORE_COPYRIGHTS and \
-        not SourceProcessor.IGNORE_COPYRIGHTS_DIRECTORY in name:
+        not any(ignore_dir in name for ignore_dir
+                in SourceProcessor.IGNORE_COPYRIGHTS_DIRECTORIES):
       if not COPYRIGHT_HEADER_PATTERN.search(contents):
         print("%s is missing a correct copyright header." % name)
         result = False
@@ -517,7 +520,7 @@ class SourceProcessor(SourceFileProcessor):
       print("%s does not end with a single new line." % name)
       result = False
     # Sanitize flags for fuzzer.
-    if ".js" in name and ("mjsunit" in name or "debugger" in name):
+    if (".js" in name or ".mjs" in name) and ("mjsunit" in name or "debugger" in name):
       match = FLAGS_LINE.search(contents)
       if match:
         print("%s Flags should use '-' (not '_')" % name)

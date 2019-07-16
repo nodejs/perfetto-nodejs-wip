@@ -7,13 +7,13 @@
 #include <limits>
 #include <ostream>
 
-#include "src/code-factory.h"
-#include "src/frames.h"
-#include "src/interface-descriptors.h"
+#include "src/codegen/code-factory.h"
+#include "src/codegen/interface-descriptors.h"
+#include "src/codegen/machine-type.h"
+#include "src/execution/frames.h"
 #include "src/interpreter/bytecodes.h"
 #include "src/interpreter/interpreter.h"
-#include "src/machine-type.h"
-#include "src/objects-inl.h"
+#include "src/objects/objects-inl.h"
 #include "src/zone/zone.h"
 
 namespace v8 {
@@ -389,7 +389,6 @@ Node* InterpreterAssembler::BytecodeOperandReadUnaligned(
       break;
     default:
       UNREACHABLE();
-      break;
   }
   MachineType msb_type =
       result_type.IsSigned() ? MachineType::Int8() : MachineType::Uint8();
@@ -1266,7 +1265,7 @@ void InterpreterAssembler::UpdateInterruptBudget(Node* weight, bool backward) {
 
   // Make sure we include the current bytecode in the budget calculation.
   TNode<Int32T> budget_after_bytecode =
-      Signed(Int32Sub(old_budget, Int32Constant(CurrentBytecodeSize())));
+      Int32Sub(old_budget, Int32Constant(CurrentBytecodeSize()));
 
   Label done(this);
   TVARIABLE(Int32T, new_budget);
@@ -1502,9 +1501,9 @@ void InterpreterAssembler::UpdateInterruptBudgetOnReturn() {
   UpdateInterruptBudget(profiling_weight, true);
 }
 
-Node* InterpreterAssembler::LoadOSRNestingLevel() {
+Node* InterpreterAssembler::LoadOsrNestingLevel() {
   return LoadObjectField(BytecodeArrayTaggedPointer(),
-                         BytecodeArray::kOSRNestingLevelOffset,
+                         BytecodeArray::kOsrNestingLevelOffset,
                          MachineType::Int8());
 }
 

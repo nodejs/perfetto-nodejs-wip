@@ -4,10 +4,10 @@
 
 #include <bitset>
 
-#include "src/assembler-inl.h"
-#include "src/macro-assembler-inl.h"
-#include "src/simulator.h"
-#include "src/utils.h"
+#include "src/codegen/assembler-inl.h"
+#include "src/codegen/macro-assembler-inl.h"
+#include "src/execution/simulator.h"
+#include "src/utils/utils.h"
 #include "src/wasm/jump-table-assembler.h"
 #include "test/cctest/cctest.h"
 #include "test/common/assembler-tester.h"
@@ -224,7 +224,7 @@ TEST(JumpTablePatchingStress) {
   Address slot_start = reinterpret_cast<Address>(buffer->start());
   for (int slot = 0; slot < kJumpTableSlotCount; ++slot) {
     TRACE("Hammering on jump table slot #%d ...\n", slot);
-    uint32_t slot_offset = JumpTableAssembler::SlotIndexToOffset(slot);
+    uint32_t slot_offset = JumpTableAssembler::JumpSlotIndexToOffset(slot);
     std::vector<std::unique_ptr<TestingAssemblerBuffer>> thunk_buffers;
     Address thunk1 =
         GenerateJumpTableThunk(slot_start + slot_offset, thunk_slot_buffer,

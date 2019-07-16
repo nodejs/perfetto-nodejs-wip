@@ -5,16 +5,14 @@
 #ifndef V8_BUILTINS_BUILTINS_TYPED_ARRAY_GEN_H_
 #define V8_BUILTINS_BUILTINS_TYPED_ARRAY_GEN_H_
 
-#include "src/code-stub-assembler.h"
-#include "torque-generated/builtins-typed-array-from-dsl-gen.h"
+#include "src/codegen/code-stub-assembler.h"
 
 namespace v8 {
 namespace internal {
 
 class TypedArrayBuiltinsAssembler : public CodeStubAssembler {
  public:
-  using ElementsInfo =
-      TypedArrayBuiltinsFromDSLAssembler::TypedArrayElementsInfo;
+  using ElementsInfo = TorqueStructTypedArrayElementsInfo;
   explicit TypedArrayBuiltinsAssembler(compiler::CodeAssemblerState* state)
       : CodeStubAssembler(state) {}
 
@@ -29,38 +27,31 @@ class TypedArrayBuiltinsAssembler : public CodeStubAssembler {
                                                   const char* method_name,
                                                   IterationKind iteration_kind);
 
-  void SetupTypedArray(TNode<JSTypedArray> holder, TNode<Smi> length,
-                       TNode<UintPtrT> byte_offset,
-                       TNode<UintPtrT> byte_length);
+  void SetupTypedArrayEmbedderFields(TNode<JSTypedArray> holder);
   void AttachBuffer(TNode<JSTypedArray> holder, TNode<JSArrayBuffer> buffer,
                     TNode<Map> map, TNode<Smi> length,
                     TNode<UintPtrT> byte_offset);
 
   TNode<JSArrayBuffer> AllocateEmptyOnHeapBuffer(TNode<Context> context,
-                                                 TNode<JSTypedArray> holder,
                                                  TNode<UintPtrT> byte_length);
-
-  TNode<FixedTypedArrayBase> AllocateOnHeapElements(TNode<Map> map,
-                                                    TNode<IntPtrT> byte_length,
-                                                    TNode<Number> length);
 
   TNode<Map> LoadMapForType(TNode<JSTypedArray> array);
   TNode<BoolT> IsMockArrayBufferAllocatorFlag();
   TNode<UintPtrT> CalculateExternalPointer(TNode<UintPtrT> backing_store,
                                            TNode<UintPtrT> byte_offset);
-  TNode<RawPtrT> LoadDataPtr(TNode<JSTypedArray> typed_array);
 
   // Returns true if kind is either UINT8_ELEMENTS or UINT8_CLAMPED_ELEMENTS.
-  TNode<Word32T> IsUint8ElementsKind(TNode<Word32T> kind);
+  TNode<BoolT> IsUint8ElementsKind(TNode<Word32T> kind);
 
   // Returns true if kind is either BIGINT64_ELEMENTS or BIGUINT64_ELEMENTS.
-  TNode<Word32T> IsBigInt64ElementsKind(TNode<Word32T> kind);
+  TNode<BoolT> IsBigInt64ElementsKind(TNode<Word32T> kind);
 
   // Returns the byte size of an element for a TypedArray elements kind.
   TNode<IntPtrT> GetTypedArrayElementSize(TNode<Word32T> elements_kind);
 
   // Returns information (byte size and map) about a TypedArray's elements.
   ElementsInfo GetTypedArrayElementsInfo(TNode<JSTypedArray> typed_array);
+  ElementsInfo GetTypedArrayElementsInfo(TNode<Map> map);
 
   TNode<JSFunction> GetDefaultConstructor(TNode<Context> context,
                                           TNode<JSTypedArray> exemplar);
@@ -114,7 +105,7 @@ class TypedArrayBuiltinsAssembler : public CodeStubAssembler {
                                         TNode<IntPtrT> start,
                                         TNode<IntPtrT> end);
 
-  typedef std::function<void(ElementsKind, int, int)> TypedArraySwitchCase;
+  using TypedArraySwitchCase = std::function<void(ElementsKind, int, int)>;
 
   void DispatchTypedArrayByElementsKind(
       TNode<Word32T> elements_kind, const TypedArraySwitchCase& case_function);

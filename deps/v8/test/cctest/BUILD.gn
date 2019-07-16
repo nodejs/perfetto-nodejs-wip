@@ -6,6 +6,11 @@ import("../../gni/v8.gni")
 
 v8_executable("cctest") {
   testonly = true
+
+  sources = [
+    "cctest.cc",
+  ]
+
   deps = [
     ":cctest_sources",
   ]
@@ -26,6 +31,10 @@ v8_executable("cctest") {
   ]
 
   ldflags = []
+
+  if (v8_use_perfetto) {
+    deps += [ "//third_party/perfetto/include/perfetto/tracing" ]
+  }
 
   # TODO(machenbach): Translate from gyp.
   #["OS=="aix"", {
@@ -50,14 +59,12 @@ v8_source_set("cctest_sources") {
   testonly = true
 
   sources = [
-    "$target_gen_dir/resources.cc",
-
     ### gcmole(all) ###
     "../common/assembler-tester.h",
     "../common/wasm/flag-utils.h",
     "../common/wasm/test-signatures.h",
     "../common/wasm/wasm-macro-gen.h",
-    "cctest.cc",
+    "collector.h",
     "compiler/c-signature.h",
     "compiler/call-tester.h",
     "compiler/code-assembler-tester.h",
@@ -106,6 +113,8 @@ v8_source_set("cctest_sources") {
     "compiler/test-run-variables.cc",
     "compiler/value-helper.cc",
     "compiler/value-helper.h",
+    "disasm-regex-helper.cc",
+    "disasm-regex-helper.h",
     "expression-type-collector-macros.h",
     "gay-fixed.cc",
     "gay-fixed.h",
@@ -125,6 +134,7 @@ v8_source_set("cctest_sources") {
     "heap/test-heap.cc",
     "heap/test-incremental-marking.cc",
     "heap/test-invalidated-slots.cc",
+    "heap/test-iterators.cc",
     "heap/test-lab.cc",
     "heap/test-mark-compact.cc",
     "heap/test-page-promotion.cc",
@@ -159,7 +169,10 @@ v8_source_set("cctest_sources") {
     "test-accessors.cc",
     "test-allocation.cc",
     "test-api-accessors.cc",
+    "test-api-array-buffer.cc",
     "test-api-interceptors.cc",
+    "test-api-stack-traces.cc",
+    "test-api-typed-array.cc",
     "test-api.cc",
     "test-api.h",
     "test-array-list.cc",
@@ -299,6 +312,8 @@ v8_source_set("cctest_sources") {
       "test-fuzz-arm64.cc",
       "test-javascript-arm64.cc",
       "test-js-arm64-variables.cc",
+      "test-macro-assembler-arm64.cc",
+      "test-poison-disasm-arm64.cc",
       "test-sync-primitives-arm64.cc",
       "test-utils-arm64.cc",
       "test-utils-arm64.h",
@@ -362,7 +377,6 @@ v8_source_set("cctest_sources") {
 
   public_deps = [
     ":cctest_headers",
-    ":resources",
     "..:common_test_headers",
     "../..:v8_for_testing",
     "../..:v8_libbase",
@@ -405,35 +419,14 @@ v8_source_set("cctest_sources") {
     # MSVS wants this for gay-{precision,shortest}.cc.
     cflags += [ "/bigobj" ]
   }
-}
 
-action("resources") {
-  visibility = [ ":*" ]  # Only targets in this file can depend on this.
-
-  script = "../../tools/js2c.py"
-
-  # NOSORT
-  sources = [
-    "../../tools/splaytree.js",
-    "../../tools/codemap.js",
-    "../../tools/csvparser.js",
-    "../../tools/consarray.js",
-    "../../tools/profile.js",
-    "../../tools/profile_view.js",
-    "../../tools/arguments.js",
-    "../../tools/logreader.js",
-    "log-eq-of-logging-and-traversal.js",
-  ]
-
-  outputs = [
-    "$target_gen_dir/resources.cc",
-  ]
-
-  args = [
-    rebase_path("$target_gen_dir/resources.cc", root_build_dir),
-    "TEST",
-  ]
-  args += rebase_path(sources, root_build_dir)
+  if (v8_use_perfetto) {
+    deps += [
+      "//third_party/perfetto/include/perfetto/tracing",
+      "//third_party/perfetto/protos/perfetto/trace/chrome:lite",
+      "//third_party/perfetto/protos/perfetto/trace/chrome:zero",
+    ]
+  }
 }
 
 v8_executable("generate-bytecode-expectations") {
@@ -456,14 +449,5 @@ v8_executable("generate-bytecode-expectations") {
     "../..:v8_libbase",
     "../..:v8_libplatform",
     "//build/win:default_exe_manifest",
-  ]
-}
-
-#Target to generate all .cc files.
-group("v8_generated_cc_files") {
-  testonly = true
-
-  deps = [
-    ":resources",
   ]
 }

@@ -7,14 +7,14 @@
 
 #include <vector>
 
+#include "src/codegen/source-position-table.h"
+#include "src/common/globals.h"
 #include "src/debug/debug-interface.h"
 #include "src/debug/interface-types.h"
-#include "src/frames.h"
-#include "src/globals.h"
-#include "src/handles.h"
-#include "src/isolate.h"
+#include "src/execution/interrupts-scope.h"
+#include "src/execution/isolate.h"
+#include "src/handles/handles.h"
 #include "src/objects/debug-objects.h"
-#include "src/source-position-table.h"
 
 namespace v8 {
 namespace internal {
@@ -22,7 +22,10 @@ namespace internal {
 // Forward declarations.
 class AbstractCode;
 class DebugScope;
+class InterpretedFrame;
+class JavaScriptFrame;
 class JSGeneratorObject;
+class StackFrame;
 
 // Step actions. NOTE: These values are in macros.py as well.
 enum StepAction : int8_t {
@@ -227,7 +230,7 @@ class V8_EXPORT_PRIVATE Debug {
   Handle<FixedArray> GetLoadedScripts();
 
   // Break point handling.
-  bool SetBreakPoint(Handle<JSFunction> function,
+  bool SetBreakpoint(Handle<SharedFunctionInfo> shared,
                      Handle<BreakPoint> break_point, int* source_position);
   void ClearBreakPoint(Handle<BreakPoint> break_point);
   void ChangeBreakOnException(ExceptionBreakType type, bool enable);
@@ -235,7 +238,7 @@ class V8_EXPORT_PRIVATE Debug {
 
   bool SetBreakPointForScript(Handle<Script> script, Handle<String> condition,
                               int* source_position, int* id);
-  bool SetBreakpointForFunction(Handle<JSFunction> function,
+  bool SetBreakpointForFunction(Handle<SharedFunctionInfo> shared,
                                 Handle<String> condition, int* id);
   void RemoveBreakpoint(int id);
 
@@ -341,7 +344,7 @@ class V8_EXPORT_PRIVATE Debug {
   void set_break_points_active(bool v) { break_points_active_ = v; }
   bool break_points_active() const { return break_points_active_; }
 
-  StackFrame::Id break_frame_id() { return thread_local_.break_frame_id_; }
+  StackFrameId break_frame_id() { return thread_local_.break_frame_id_; }
 
   Handle<Object> return_value_handle();
   Object return_value() { return thread_local_.return_value_; }
@@ -497,7 +500,7 @@ class V8_EXPORT_PRIVATE Debug {
     base::AtomicWord current_debug_scope_;
 
     // Frame id for the frame of the current break.
-    StackFrame::Id break_frame_id_;
+    StackFrameId break_frame_id_;
 
     // Step action for last step performed.
     StepAction last_step_action_;
@@ -564,7 +567,7 @@ class DebugScope {
 
   Debug* debug_;
   DebugScope* prev_;               // Previous scope if entered recursively.
-  StackFrame::Id break_frame_id_;  // Previous break frame id.
+  StackFrameId break_frame_id_;    // Previous break frame id.
   PostponeInterruptsScope no_interrupts_;
 };
 

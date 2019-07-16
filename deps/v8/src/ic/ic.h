@@ -7,11 +7,11 @@
 
 #include <vector>
 
-#include "src/feedback-vector.h"
+#include "src/common/message-template.h"
+#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
 #include "src/ic/stub-cache.h"
-#include "src/isolate.h"
-#include "src/message-template.h"
+#include "src/objects/feedback-vector.h"
 #include "src/objects/map.h"
 #include "src/objects/maybe-object.h"
 #include "src/objects/smi.h"
@@ -29,8 +29,6 @@ class IC {
   // Alias the inline cache state type to make the IC code more readable.
   using State = InlineCacheState;
 
-  static constexpr int kMaxKeyedPolymorphism = 4;
-
   // Construct the IC structure with the given number of extra
   // JavaScript frames on the stack.
   IC(Isolate* isolate, Handle<FeedbackVector> vector, FeedbackSlot slot,
@@ -38,7 +36,6 @@ class IC {
   virtual ~IC() = default;
 
   State state() const { return state_; }
-  inline Address address() const;
 
   // Compute the current IC state based on the target stub, receiver and name.
   void UpdateState(Handle<Object> receiver, Handle<Object> name);
@@ -63,26 +60,14 @@ class IC {
 
   // Nofity the IC system that a feedback has changed.
   static void OnFeedbackChanged(Isolate* isolate, FeedbackVector vector,
-                                FeedbackSlot slot, JSFunction host_function,
-                                const char* reason);
+                                FeedbackSlot slot, const char* reason);
 
-  static void OnFeedbackChanged(Isolate* isolate, FeedbackNexus* nexus,
-                                JSFunction host_function, const char* reason);
+  void OnFeedbackChanged(const char* reason);
 
  protected:
-  Address fp() const { return fp_; }
-  Address pc() const { return *pc_address_; }
-
   void set_slow_stub_reason(const char* reason) { slow_stub_reason_ = reason; }
 
   Isolate* isolate() const { return isolate_; }
-
-  // Get the caller function object.
-  JSFunction GetHostFunction() const;
-
-  inline bool AddressIsDeoptimizedCode() const;
-  inline static bool AddressIsDeoptimizedCode(Isolate* isolate,
-                                              Address address);
 
   bool is_vector_set() { return vector_set_; }
   inline bool vector_needs_update();
@@ -108,8 +93,6 @@ class IC {
   MaybeHandle<Object> TypeError(MessageTemplate, Handle<Object> object,
                                 Handle<Object> key);
   MaybeHandle<Object> ReferenceError(Handle<Name> name);
-
-  void TraceHandlerCacheHitStats(LookupIterator* lookup);
 
   void UpdateMonomorphicIC(const MaybeObjectHandle& handler, Handle<Name> name);
   bool UpdatePolymorphicIC(Handle<Name> name, const MaybeObjectHandle& handler);
@@ -161,27 +144,11 @@ class IC {
   FeedbackNexus* nexus() { return &nexus_; }
 
  private:
-  inline Address constant_pool() const;
-  inline Address raw_constant_pool() const;
-
   void FindTargetMaps() {
     if (target_maps_set_) return;
     target_maps_set_ = true;
     nexus()->ExtractMaps(&target_maps_);
   }
-
-  // Frame pointer for the frame that uses (calls) the IC.
-  Address fp_;
-
-  // All access to the program counter and constant pool of an IC structure is
-  // indirect to make the code GC safe. This feature is crucial since
-  // GetProperty and SetProperty are called and they in turn might
-  // invoke the garbage collector.
-  Address* pc_address_;
-
-  // The constant pool of the code which originally called the IC (which might
-  // be for the breakpointed copy of the original code).
-  Address* constant_pool_address_;
 
   Isolate* isolate_;
 
@@ -190,7 +157,6 @@ class IC {
   State state_;
   FeedbackSlotKind kind_;
   Handle<Map> receiver_map_;
-  MaybeObjectHandle maybe_handler_;
 
   MapHandles target_maps_;
   bool target_maps_set_;
@@ -337,6 +303,12 @@ enum KeyedStoreCheckMap { kDontCheckMap, kCheckMap };
 
 enum KeyedStoreIncrementLength { kDontIncrementLength, kIncrementLength };
 
+enum class TransitionMode {
+  kNoTransition,
+  kTransitionToDouble,
+  kTransitionToObject
+};
+
 class KeyedStoreIC : public StoreIC {
  public:
   KeyedAccessStoreMode GetKeyedAccessStoreMode() {
@@ -354,7 +326,7 @@ class KeyedStoreIC : public StoreIC {
  protected:
   void UpdateStoreElement(Handle<Map> receiver_map,
                           KeyedAccessStoreMode store_mode,
-                          bool receiver_was_cow);
+                          Handle<Map> new_receiver_map);
 
   Handle<Code> slow_stub() const override {
     return BUILTIN_CODE(isolate(), KeyedStoreIC_Slow);
@@ -362,7 +334,7 @@ class KeyedStoreIC : public StoreIC {
 
  private:
   Handle<Map> ComputeTransitionedMap(Handle<Map> map,
-                                     KeyedAccessStoreMode store_mode);
+                                     TransitionMode transition_mode);
 
   Handle<Object> StoreElementHandler(Handle<Map> receiver_map,
                                      KeyedAccessStoreMode store_mode);

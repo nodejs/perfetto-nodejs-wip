@@ -9,9 +9,9 @@
 #include "src/base/lazy-instance.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
-#include "src/handles-inl.h"
-#include "src/objects-inl.h"
-#include "src/vector-slot-pair.h"
+#include "src/compiler/vector-slot-pair.h"
+#include "src/handles/handles-inl.h"
+#include "src/objects/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -899,8 +899,10 @@ const Operator* JSOperatorBuilder::ConstructForwardVarargs(
       parameters);  // parameter
 }
 
+// Note: frequency is taken by reference to work around a GCC bug
+// on AIX (v8:8193).
 const Operator* JSOperatorBuilder::Construct(uint32_t arity,
-                                             CallFrequency frequency,
+                                             CallFrequency const& frequency,
                                              VectorSlotPair const& feedback) {
   ConstructParameters parameters(arity, frequency, feedback);
   return new (zone()) Operator1<ConstructParameters>(   // --
@@ -921,7 +923,8 @@ const Operator* JSOperatorBuilder::ConstructWithArrayLike(
 }
 
 const Operator* JSOperatorBuilder::ConstructWithSpread(
-    uint32_t arity, CallFrequency frequency, VectorSlotPair const& feedback) {
+    uint32_t arity, CallFrequency const& frequency,
+    VectorSlotPair const& feedback) {
   ConstructParameters parameters(arity, frequency, feedback);
   return new (zone()) Operator1<ConstructParameters>(             // --
       IrOpcode::kJSConstructWithSpread, Operator::kNoProperties,  // opcode

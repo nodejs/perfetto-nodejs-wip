@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "src/common/globals.h"
+
 namespace v8 {
 namespace internal {
 namespace wasm {
@@ -24,9 +26,9 @@ enum ValueTypeCode : uint8_t {
   kLocalF32 = 0x7d,
   kLocalF64 = 0x7c,
   kLocalS128 = 0x7b,
-  kLocalAnyFunc = 0x70,
+  kLocalFuncRef = 0x70,
   kLocalAnyRef = 0x6f,
-  kLocalExceptRef = 0x68,
+  kLocalExnRef = 0x68,
 };
 // Binary encoding of other types.
 constexpr uint8_t kWasmFunctionTypeCode = 0x60;
@@ -87,6 +89,10 @@ enum SectionCode : int8_t {
   kFirstUnorderedSection = kDataCountSectionCode,
 };
 
+// Binary encoding of compilation hints.
+constexpr uint8_t kDefaultCompilationHint = 0x0;
+constexpr uint8_t kNoCompilationHint = kMaxUInt8;
+
 // Binary encoding of name section kinds.
 enum NameSectionKindCode : uint8_t { kModule = 0, kFunction = 1, kLocal = 2 };
 
@@ -99,6 +105,8 @@ using WasmCodePosition = int;
 constexpr WasmCodePosition kNoCodePosition = -1;
 
 constexpr uint32_t kExceptionAttribute = 0;
+
+constexpr uint32_t kAnonymousFuncIndex = 0xffffffff;
 
 }  // namespace wasm
 }  // namespace internal

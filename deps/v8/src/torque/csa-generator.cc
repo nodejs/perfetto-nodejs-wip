@@ -4,7 +4,7 @@
 
 #include "src/torque/csa-generator.h"
 
-#include "src/globals.h"
+#include "src/common/globals.h"
 #include "src/torque/type-oracle.h"
 #include "src/torque/utils.h"
 
@@ -56,14 +56,10 @@ Stack<std::string> CSAGenerator::EmitBlock(const Block* block) {
 }
 
 void CSAGenerator::EmitSourcePosition(SourcePosition pos, bool always_emit) {
-  std::string file = SourceFileMap::GetSource(pos.source);
+  const std::string& file = SourceFileMap::AbsolutePath(pos.source);
   if (always_emit || !previous_position_.CompareStartIgnoreColumn(pos)) {
     // Lines in Torque SourcePositions are zero-based, while the
     // CodeStubAssembler and downwind systems are one-based.
-    for (auto& c : file) {
-      if (c == '\\')
-        c = '/';
-    }
     out_ << "    ca_.SetSourcePosition(\"" << file << "\", "
          << (pos.start.line + 1) << ");\n";
     previous_position_ = pos;
@@ -135,8 +131,7 @@ void CSAGenerator::EmitInstruction(
   } else if (results.size() == 1) {
     out_ << results[0] << " = ";
   }
-  out_ << instruction.constant->ExternalAssemblerName() << "(state_)."
-       << instruction.constant->name()->value << "()";
+  out_ << instruction.constant->external_name() << "(state_)";
   if (type->IsStructType()) {
     out_ << ".Flatten();\n";
   } else {
@@ -261,9 +256,8 @@ void CSAGenerator::EmitInstruction(const CallIntrinsicInstruction& instruction,
   } else if (instruction.intrinsic->ExternalName() == "%Allocate") {
     out_ << "ca_.UncheckedCast<" << return_type->GetGeneratedTNodeTypeName()
          << ">(CodeStubAssembler(state_).Allocate";
-  } else if (instruction.intrinsic->ExternalName() ==
-             "%AllocateInternalClass") {
-    out_ << "CodeStubAssembler(state_).AllocateUninitializedFixedArray";
+  } else if (instruction.intrinsic->ExternalName() == "%GetStructMap") {
+    out_ << "CodeStubAssembler(state_).GetStructMap";
   } else {
     ReportError("no built in intrinsic with name " +
                 instruction.intrinsic->ExternalName());
@@ -319,19 +313,21 @@ void CSAGenerator::EmitInstruction(const CallCsaMacroInstruction& instruction,
     out_ << ") = ";
   } else {
     if (results.size() == 1) {
-      out_ << results[0] << " = ca_.UncheckedCast<"
-           << return_type->GetGeneratedTNodeTypeName() << ">(";
+      out_ << results[0] << " = ";
     } else {
       DCHECK_EQ(0, results.size());
     }
   }
-  out_ << instruction.macro->external_assembler_name() << "(state_)."
-       << instruction.macro->ExternalName() << "(";
+  if (ExternMacro* extern_macro = ExternMacro::DynamicCast(instruction.macro)) {
+    out_ << extern_macro->external_assembler_name() << "(state_).";
+  } else {
+    args.insert(args.begin(), "state_");
+  }
+  out_ << instruction.macro->ExternalName() << "(";
   PrintCommaSeparatedList(out_, args);
   if (needs_flattening) {
     out_ << ").Flatten();\n";
   } else {
-    if (results.size() == 1) out_ << ")";
     out_ << ");\n";
   }
   PostCallableExceptionPreparation(catch_name, return_type,
@@ -390,8 +386,12 @@ void CSAGenerator::EmitInstruction(
     PrintCommaSeparatedList(out_, results);
     out_ << ") = ";
   }
-  out_ << instruction.macro->external_assembler_name() << "(state_)."
-       << instruction.macro->ExternalName() << "(";
+  if (ExternMacro* extern_macro = ExternMacro::DynamicCast(instruction.macro)) {
+    out_ << extern_macro->external_assembler_name() << "(state_).";
+  } else {
+    args.insert(args.begin(), "state_");
+  }
+  out_ << instruction.macro->ExternalName() << "(";
   PrintCommaSeparatedList(out_, args);
   bool first = args.empty();
   for (size_t i = 0; i < label_names.size(); ++i) {
@@ -521,9 +521,9 @@ std::string CSAGenerator::PreCallableExceptionPreparation(
   if (catch_block) {
     catch_name = FreshCatchName();
     out_ << "    compiler::CodeAssemblerExceptionHandlerLabel " << catch_name
-         << "_label(&ca_, compiler::CodeAssemblerLabel::kDeferred);\n";
+         << "__label(&ca_, compiler::CodeAssemblerLabel::kDeferred);\n";
     out_ << "    { compiler::CodeAssemblerScopedExceptionHandler s(&ca_, &"
-         << catch_name << "_label);\n";
+         << catch_name << "__label);\n";
   }
   return catch_name;
 }
@@ -534,7 +534,7 @@ void CSAGenerator::PostCallableExceptionPreparation(
   if (catch_block) {
     std::string block_name = BlockName(*catch_block);
     out_ << "    }\n";
-    out_ << "    if (" << catch_name << "_label.is_used()) {\n";
+    out_ << "    if (" << catch_name << "__label.is_used()) {\n";
     out_ << "      compiler::CodeAssemblerLabel " << catch_name
          << "_skip(&ca_);\n";
     if (!return_type->IsNever()) {
@@ -542,7 +542,7 @@ void CSAGenerator::PostCallableExceptionPreparation(
     }
     out_ << "      compiler::TNode<Object> " << catch_name
          << "_exception_object;\n";
-    out_ << "      ca_.Bind(&" << catch_name << "_label, &" << catch_name
+    out_ << "      ca_.Bind(&" << catch_name << "__label, &" << catch_name
          << "_exception_object);\n";
     out_ << "      ca_.Goto(&" << block_name;
     for (size_t i = 0; i < stack->Size(); ++i) {
@@ -584,12 +584,16 @@ void CSAGenerator::EmitInstruction(const CallRuntimeInstruction& instruction,
         PreCallableExceptionPreparation(instruction.catch_block);
     Stack<std::string> pre_call_stack = *stack;
     if (result_types.size() == 1) {
+      std::string generated_type = result_types[0]->GetGeneratedTNodeTypeName();
       stack->Push(result_name);
-      out_ << "    " << result_name
-           << " = TORQUE_CAST(CodeStubAssembler(state_).CallRuntime(Runtime::k"
+      out_ << "    " << result_name << " = ";
+      if (generated_type != "Object") out_ << "TORQUE_CAST(";
+      out_ << "CodeStubAssembler(state_).CallRuntime(Runtime::k"
            << instruction.runtime_function->ExternalName() << ", ";
       PrintCommaSeparatedList(out_, arguments);
-      out_ << "));\n";
+      out_ << ")";
+      if (generated_type != "Object") out_ << ")";
+      out_ << "; \n";
       out_ << "    USE(" << result_name << ");\n";
     } else {
       DCHECK_EQ(0, result_types.size());
@@ -684,8 +688,8 @@ void CSAGenerator::EmitInstruction(const AbortInstruction& instruction,
       out_ << "    CodeStubAssembler(state_).DebugBreak();\n";
       break;
     case AbortInstruction::Kind::kAssertionFailure: {
-      std::string file =
-          StringLiteralQuote(SourceFileMap::GetSource(instruction.pos.source));
+      std::string file = StringLiteralQuote(
+          SourceFileMap::PathFromV8Root(instruction.pos.source));
       out_ << "    CodeStubAssembler(state_).FailAssert("
            << StringLiteralQuote(instruction.message) << ", " << file << ", "
            << instruction.pos.start.line + 1 << ");\n";
@@ -712,12 +716,8 @@ void CSAGenerator::EmitInstruction(
 
   out_ << "    compiler::TNode<IntPtrT> " << offset_name
        << " = ca_.IntPtrConstant(";
-  if (instruction.class_type->IsExtern()) {
     out_ << field.aggregate->GetGeneratedTNodeTypeName() << "::k"
          << CamelifyString(field.name_and_type.name) << "Offset";
-  } else {
-    out_ << "FixedArray::kHeaderSize + " << field.offset;
-  }
   out_ << ");\n"
        << "    USE(" << stack->Top() << ");\n";
 }

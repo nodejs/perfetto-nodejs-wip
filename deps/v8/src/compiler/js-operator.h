@@ -6,11 +6,11 @@
 #define V8_COMPILER_JS_OPERATOR_H_
 
 #include "src/base/compiler-specific.h"
-#include "src/globals.h"
-#include "src/maybe-handles.h"
+#include "src/common/globals.h"
+#include "src/compiler/vector-slot-pair.h"
+#include "src/handles/maybe-handles.h"
+#include "src/objects/type-hints.h"
 #include "src/runtime/runtime.h"
-#include "src/type-hints.h"
-#include "src/vector-slot-pair.h"
 
 namespace v8 {
 namespace internal {
@@ -106,7 +106,7 @@ class ConstructParameters final {
       : arity_(arity), frequency_(frequency), feedback_(feedback) {}
 
   uint32_t arity() const { return arity_; }
-  CallFrequency frequency() const { return frequency_; }
+  CallFrequency const& frequency() const { return frequency_; }
   VectorSlotPair const& feedback() const { return feedback_; }
 
  private:
@@ -768,11 +768,11 @@ class V8_EXPORT_PRIVATE JSOperatorBuilder final
 
   const Operator* ConstructForwardVarargs(size_t arity, uint32_t start_index);
   const Operator* Construct(uint32_t arity,
-                            CallFrequency frequency = CallFrequency(),
+                            CallFrequency const& frequency = CallFrequency(),
                             VectorSlotPair const& feedback = VectorSlotPair());
   const Operator* ConstructWithArrayLike(CallFrequency frequency);
   const Operator* ConstructWithSpread(
-      uint32_t arity, CallFrequency frequency = CallFrequency(),
+      uint32_t arity, CallFrequency const& frequency = CallFrequency(),
       VectorSlotPair const& feedback = VectorSlotPair());
 
   const Operator* LoadProperty(VectorSlotPair const& feedback);

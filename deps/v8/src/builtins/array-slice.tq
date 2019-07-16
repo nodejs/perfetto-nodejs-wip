@@ -63,11 +63,15 @@ namespace array_slice {
     for (let current: Smi = start; current < to; ++current) {
       const e: Object =
           sloppyElements.objects[current + kSloppyArgumentsParameterMapStart];
-      const newElement: Object = e != Hole ?
+      const newElement: Object = e != TheHole ?
           argumentsContext[UnsafeCast<Smi>(e)] :
           unmappedElements.objects[current];
-      StoreFixedArrayElementSmi(
-          resultElements, indexOut++, newElement, SKIP_WRITE_BARRIER);
+      // It is safe to skip the write barrier here because resultElements was
+      // allocated together with result in a folded allocation.
+      // TODO(tebbi): The verification of this fails at the moment due to
+      // missing load elimination.
+      StoreFixedArrayElement(
+          resultElements, indexOut++, newElement, UNSAFE_SKIP_WRITE_BARRIER);
     }
 
     // Fill in the rest of the result that contains the unmapped parameters
@@ -101,7 +105,6 @@ namespace array_slice {
         return ExtractFastJSArray(context, a, start, count);
       }
       case (a: JSArgumentsObjectWithLength): {
-        const nativeContext: NativeContext = LoadNativeContext(context);
         const map: Map = a.map;
         if (IsFastAliasedArgumentsMap(map)) {
           return HandleFastAliasedSloppyArgumentsSlice(context, a, start, count)
@@ -119,8 +122,8 @@ namespace array_slice {
 
   // https://tc39.github.io/ecma262/#sec-array.prototype.slice
   transitioning javascript builtin
-  ArrayPrototypeSlice(context: Context, receiver: Object, ...arguments):
-      Object {
+  ArrayPrototypeSlice(js-implicit context: Context, receiver: Object)(
+      ...arguments): Object {
     // Handle array cloning case if the receiver is a fast array.
     if (arguments.length == 0) {
       typeswitch (receiver) {
@@ -182,7 +185,7 @@ namespace array_slice {
     // 10. Repeat, while k < final
     while (k < final) {
       // a. Let Pk be ! ToString(k).
-      let pK: Number = k;
+      const pK: Number = k;
 
       // b. Let kPresent be ? HasProperty(O, Pk).
       const fromPresent: Boolean = HasProperty(o, pK);

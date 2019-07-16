@@ -7,20 +7,20 @@
 #include <cstdarg>
 
 #include "src/base/atomic-utils.h"
-#include "src/counters-inl.h"
+#include "src/execution/isolate.h"
 #include "src/heap/heap-inl.h"
 #include "src/heap/incremental-marking.h"
 #include "src/heap/spaces.h"
-#include "src/isolate.h"
+#include "src/logging/counters-inl.h"
 
 namespace v8 {
 namespace internal {
 
 static size_t CountTotalHolesSize(Heap* heap) {
   size_t holes_size = 0;
-  PagedSpaces spaces(heap);
-  for (PagedSpace* space = spaces.next(); space != nullptr;
-       space = spaces.next()) {
+  PagedSpaceIterator spaces(heap);
+  for (PagedSpace* space = spaces.Next(); space != nullptr;
+       space = spaces.Next()) {
     DCHECK_GE(holes_size + space->Waste() + space->Available(), holes_size);
     holes_size += space->Waste() + space->Available();
   }
@@ -150,9 +150,11 @@ GCTracer::GCTracer(Heap* heap)
       allocation_time_ms_(0.0),
       new_space_allocation_counter_bytes_(0),
       old_generation_allocation_counter_bytes_(0),
+      embedder_allocation_counter_bytes_(0),
       allocation_duration_since_gc_(0.0),
       new_space_allocation_in_bytes_since_gc_(0),
       old_generation_allocation_in_bytes_since_gc_(0),
+      embedder_allocation_in_bytes_since_gc_(0),
       combined_mark_compact_speed_cache_(0.0),
       start_counter_(0),
       average_mutator_duration_(0),
@@ -191,6 +193,7 @@ void GCTracer::ResetForTesting() {
   recorded_incremental_mark_compacts_.Reset();
   recorded_new_generation_allocations_.Reset();
   recorded_old_generation_allocations_.Reset();
+  recorded_embedder_generation_allocations_.Reset();
   recorded_context_disposal_times_.Reset();
   recorded_survival_ratios_.Reset();
   start_counter_ = 0;
@@ -221,7 +224,8 @@ void GCTracer::Start(GarbageCollector collector,
   previous_ = current_;
   double start_time = heap_->MonotonicallyIncreasingTimeInMs();
   SampleAllocation(start_time, heap_->NewSpaceAllocationCounter(),
-                   heap_->OldGenerationAllocationCounter());
+                   heap_->OldGenerationAllocationCounter(),
+                   heap_->EmbedderAllocationCounter());
 
   switch (collector) {
     case SCAVENGER:
@@ -262,6 +266,12 @@ void GCTracer::Start(GarbageCollector collector,
     counters->scavenge_reason()->AddSample(static_cast<int>(gc_reason));
   } else {
     counters->mark_compact_reason()->AddSample(static_cast<int>(gc_reason));
+
+    if (FLAG_trace_gc_freelists) {
+      PrintIsolate(heap_->isolate(),
+                   "FreeLists statistics before collection:\n");
+      heap_->PrintFreeListsStats();
+    }
   }
 }
 
@@ -363,17 +373,36 @@ void GCTracer::Stop(GarbageCollector collector) {
   if (FLAG_trace_gc) {
     heap_->PrintShortHeapStatistics();
   }
+
+  if (V8_UNLIKELY(TracingFlags::gc.load(std::memory_order_relaxed) &
+                  v8::tracing::TracingCategoryObserver::ENABLED_BY_TRACING)) {
+    std::stringstream heap_stats;
+    heap_->DumpJSONHeapStatistics(heap_stats);
+
+    TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("v8.gc"), "V8.GC_Heap_Stats",
+                         TRACE_EVENT_SCOPE_THREAD, "stats",
+                         TRACE_STR_COPY(heap_stats.str().c_str()));
+  }
 }
 
+void GCTracer::NotifySweepingCompleted() {
+  if (FLAG_trace_gc_freelists) {
+    PrintIsolate(heap_->isolate(),
+                 "FreeLists statistics after sweeping completed:\n");
+    heap_->PrintFreeListsStats();
+  }
+}
 
 void GCTracer::SampleAllocation(double current_ms,
                                 size_t new_space_counter_bytes,
-                                size_t old_generation_counter_bytes) {
+                                size_t old_generation_counter_bytes,
+                                size_t embedder_counter_bytes) {
   if (allocation_time_ms_ == 0) {
     // It is the first sample.
     allocation_time_ms_ = current_ms;
     new_space_allocation_counter_bytes_ = new_space_counter_bytes;
     old_generation_allocation_counter_bytes_ = old_generation_counter_bytes;
+    embedder_allocation_counter_bytes_ = embedder_counter_bytes;
     return;
   }
   // This assumes that counters are unsigned integers so that the subtraction
@@ -382,16 +411,19 @@ void GCTracer::SampleAllocation(double current_ms,
       new_space_counter_bytes - new_space_allocation_counter_bytes_;
   size_t old_generation_allocated_bytes =
       old_generation_counter_bytes - old_generation_allocation_counter_bytes_;
+  size_t embedder_allocated_bytes =
+      embedder_counter_bytes - embedder_allocation_counter_bytes_;
   double duration = current_ms - allocation_time_ms_;
   allocation_time_ms_ = current_ms;
   new_space_allocation_counter_bytes_ = new_space_counter_bytes;
   old_generation_allocation_counter_bytes_ = old_generation_counter_bytes;
+  embedder_allocation_counter_bytes_ = embedder_counter_bytes;
   allocation_duration_since_gc_ += duration;
   new_space_allocation_in_bytes_since_gc_ += new_space_allocated_bytes;
   old_generation_allocation_in_bytes_since_gc_ +=
       old_generation_allocated_bytes;
+  embedder_allocation_in_bytes_since_gc_ += embedder_allocated_bytes;
 }
-
 
 void GCTracer::AddAllocation(double current_ms) {
   allocation_time_ms_ = current_ms;
@@ -402,10 +434,13 @@ void GCTracer::AddAllocation(double current_ms) {
     recorded_old_generation_allocations_.Push(
         MakeBytesAndDuration(old_generation_allocation_in_bytes_since_gc_,
                              allocation_duration_since_gc_));
+    recorded_embedder_generation_allocations_.Push(MakeBytesAndDuration(
+        embedder_allocation_in_bytes_since_gc_, allocation_duration_since_gc_));
   }
   allocation_duration_since_gc_ = 0;
   new_space_allocation_in_bytes_since_gc_ = 0;
   old_generation_allocation_in_bytes_since_gc_ = 0;
+  embedder_allocation_in_bytes_since_gc_ = 0;
 }
 
 
@@ -447,7 +482,7 @@ void GCTracer::Output(const char* format, ...) const {
   VSNPrintF(buffer, format, arguments2);
   va_end(arguments2);
 
-  heap_->AddToRingBuffer(buffer.start());
+  heap_->AddToRingBuffer(buffer.begin());
 }
 
 void GCTracer::Print() const {
@@ -530,20 +565,13 @@ void GCTracer::PrintNVP() const {
           "incremental.steps_count=%d "
           "incremental.steps_took=%.1f "
           "scavenge_throughput=%.f "
-          "total_size_before=%" PRIuS
-          " "
-          "total_size_after=%" PRIuS
-          " "
-          "holes_size_before=%" PRIuS
-          " "
-          "holes_size_after=%" PRIuS
-          " "
-          "allocated=%" PRIuS
-          " "
-          "promoted=%" PRIuS
-          " "
-          "semi_space_copied=%" PRIuS
-          " "
+          "total_size_before=%zu "
+          "total_size_after=%zu "
+          "holes_size_before=%zu "
+          "holes_size_after=%zu "
+          "allocated=%zu "
+          "promoted=%zu "
+          "semi_space_copied=%zu "
           "nodes_died_in_new=%d "
           "nodes_copied_in_new=%d "
           "nodes_promoted=%d "
@@ -726,20 +754,13 @@ void GCTracer::PrintNVP() const {
           "background.array_buffer_free=%.2f "
           "background.store_buffer=%.2f "
           "background.unmapper=%.1f "
-          "total_size_before=%" PRIuS
-          " "
-          "total_size_after=%" PRIuS
-          " "
-          "holes_size_before=%" PRIuS
-          " "
-          "holes_size_after=%" PRIuS
-          " "
-          "allocated=%" PRIuS
-          " "
-          "promoted=%" PRIuS
-          " "
-          "semi_space_copied=%" PRIuS
-          " "
+          "total_size_before=%zu "
+          "total_size_after=%zu "
+          "holes_size_before=%zu "
+          "holes_size_after=%zu "
+          "allocated=%zu "
+          "promoted=%zu "
+          "semi_space_copied=%zu "
           "nodes_died_in_new=%d "
           "nodes_copied_in_new=%d "
           "nodes_promoted=%d "
@@ -885,6 +906,16 @@ void GCTracer::RecordIncrementalMarkingSpeed(size_t bytes, double duration) {
   }
 }
 
+void GCTracer::RecordEmbedderSpeed(size_t bytes, double duration) {
+  if (duration == 0 || bytes == 0) return;
+  double current_speed = bytes / duration;
+  if (recorded_embedder_speed_ == 0.0) {
+    recorded_embedder_speed_ = current_speed;
+  } else {
+    recorded_embedder_speed_ = (recorded_embedder_speed_ + current_speed) / 2;
+  }
+}
+
 void GCTracer::RecordMutatorUtilization(double mark_compact_end_time,
                                         double mark_compact_duration) {
   if (previous_mark_compact_end_time_ == 0) {
@@ -923,7 +954,6 @@ double GCTracer::CurrentMarkCompactMutatorUtilization() const {
 }
 
 double GCTracer::IncrementalMarkingSpeedInBytesPerMillisecond() const {
-  const int kConservativeSpeedInBytesPerMillisecond = 128 * KB;
   if (recorded_incremental_marking_speed_ != 0) {
     return recorded_incremental_marking_speed_;
   }
@@ -931,6 +961,12 @@ double GCTracer::IncrementalMarkingSpeedInBytesPerMillisecond() const {
     return incremental_marking_bytes_ / incremental_marking_duration_;
   }
   return kConservativeSpeedInBytesPerMillisecond;
+}
+
+double GCTracer::EmbedderSpeedInBytesPerMillisecond() const {
+  // Note: Returning 0 is ok here as callers check for whether embedder speeds
+  // have been recorded at all.
+  return recorded_embedder_speed_;
 }
 
 double GCTracer::ScavengeSpeedInBytesPerMillisecond(
@@ -979,6 +1015,15 @@ double GCTracer::CombinedMarkCompactSpeedInBytesPerMillisecond() {
   return combined_mark_compact_speed_cache_;
 }
 
+double GCTracer::CombineSpeedsInBytesPerMillisecond(double default_speed,
+                                                    double optional_speed) {
+  constexpr double kMinimumSpeed = 0.5;
+  if (optional_speed < kMinimumSpeed) {
+    return default_speed;
+  }
+  return default_speed * optional_speed / (default_speed + optional_speed);
+}
+
 double GCTracer::NewSpaceAllocationThroughputInBytesPerMillisecond(
     double time_ms) const {
   size_t bytes = new_space_allocation_in_bytes_since_gc_;
@@ -995,6 +1040,14 @@ double GCTracer::OldGenerationAllocationThroughputInBytesPerMillisecond(
                       MakeBytesAndDuration(bytes, durations), time_ms);
 }
 
+double GCTracer::EmbedderAllocationThroughputInBytesPerMillisecond(
+    double time_ms) const {
+  size_t bytes = embedder_allocation_in_bytes_since_gc_;
+  double durations = allocation_duration_since_gc_;
+  return AverageSpeed(recorded_embedder_generation_allocations_,
+                      MakeBytesAndDuration(bytes, durations), time_ms);
+}
+
 double GCTracer::AllocationThroughputInBytesPerMillisecond(
     double time_ms) const {
   return NewSpaceAllocationThroughputInBytesPerMillisecond(time_ms) +
@@ -1008,6 +1061,12 @@ double GCTracer::CurrentAllocationThroughputInBytesPerMillisecond() const {
 double GCTracer::CurrentOldGenerationAllocationThroughputInBytesPerMillisecond()
     const {
   return OldGenerationAllocationThroughputInBytesPerMillisecond(
+      kThroughputTimeFrameMs);
+}
+
+double GCTracer::CurrentEmbedderAllocationThroughputInBytesPerMillisecond()
+    const {
+  return EmbedderAllocationThroughputInBytesPerMillisecond(
       kThroughputTimeFrameMs);
 }
 

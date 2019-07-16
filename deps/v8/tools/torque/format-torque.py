@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # Copyright 2014 the V8 project authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -13,6 +14,8 @@ import subprocess
 import sys
 import re
 from subprocess import Popen, PIPE
+
+kPercentEscape = r'α';  # Unicode alpha
 
 def preprocess(input):
   input = re.sub(r'(if\s+)constexpr(\s*\()', r'\1/*COxp*/\2', input)
@@ -46,14 +49,18 @@ def preprocess(input):
       r'\n otherwise', input)
   input = re.sub(r'(\n\s*\S[^\n]*\s)otherwise',
       r'\1_OtheSaLi', input)
+  input = re.sub(r'@if\(', r'@iF(', input)
+  input = re.sub(r'@export', r'@eXpOrT', input)
+  input = re.sub(r'js-implicit[ \n]+', r'jS_iMpLiCiT_', input)
+
+  # Special handing of '%' for intrinsics, turn the percent
+  # into a unicode character so that it gets treated as part of the
+  # intrinsic's name if it's already adjacent to it.
+  input = re.sub(r'%([A-Za-z])', kPercentEscape + r'\1', input)
+
   return input
 
 def postprocess(output):
-  output = re.sub(r'%\s*RawDownCast', r'%RawDownCast', output)
-  output = re.sub(r'%\s*RawConstexprCast', r'%RawConstexprCast', output)
-  output = re.sub(r'%\s*FromConstexpr', r'%FromConstexpr', output)
-  output = re.sub(r'%\s*Allocate', r'%Allocate', output)
-  output = re.sub(r'%\s*GetAllocationBaseSize', r'%GetAllocationBaseSize', output)
   output = re.sub(r'\/\*COxp\*\/', r'constexpr', output)
   output = re.sub(r'(\S+)\s*: type([,>])', r'\1: type\2', output)
   output = re.sub(r'(\n\s*)labels( [A-Z])', r'\1    labels\2', output)
@@ -79,6 +86,11 @@ def postprocess(output):
       r"\n\1otherwise", output)
   output = re.sub(r'_OtheSaLi',
       r"otherwise", output)
+  output = re.sub(r'@iF\(', r'@if(', output)
+  output = re.sub(r'@eXpOrT',
+      r"@export", output)
+  output = re.sub(r'jS_iMpLiCiT_',
+      r"js-implicit ", output)
 
   while True:
     old = output
@@ -86,6 +98,8 @@ def postprocess(output):
         r'\1 |\2', output)
     if old == output:
       break;
+
+  output = re.sub(kPercentEscape, r'%', output)
 
   return output
 
@@ -106,14 +120,14 @@ def process(filename, lint, should_format):
     print("error code " + str(rc) + " running clang-format. Exiting...")
     sys.exit(rc);
 
-  if lint:
-    if (output != original_input):
+  if (output != original_input):
+    if lint:
       print(filename + ' requires formatting', file=sys.stderr)
 
-  if should_format:
-    output_file = open(filename, 'w')
-    output_file.write(output);
-    output_file.close()
+    if should_format:
+      output_file = open(filename, 'w')
+      output_file.write(output);
+      output_file.close()
 
 def print_usage():
   print('format-torque -i file1[, file2[, ...]]')

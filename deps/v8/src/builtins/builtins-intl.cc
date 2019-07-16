@@ -12,10 +12,9 @@
 
 #include "src/builtins/builtins-utils-inl.h"
 #include "src/builtins/builtins.h"
-#include "src/counters.h"
-#include "src/date.h"
-#include "src/elements.h"
-#include "src/objects-inl.h"
+#include "src/date/date.h"
+#include "src/logging/counters.h"
+#include "src/objects/elements.h"
 #include "src/objects/intl-objects.h"
 #include "src/objects/js-array-inl.h"
 #include "src/objects/js-break-iterator-inl.h"
@@ -28,8 +27,9 @@
 #include "src/objects/js-relative-time-format-inl.h"
 #include "src/objects/js-segment-iterator-inl.h"
 #include "src/objects/js-segmenter-inl.h"
+#include "src/objects/objects-inl.h"
+#include "src/objects/property-descriptor.h"
 #include "src/objects/smi.h"
-#include "src/property-descriptor.h"
 
 #include "unicode/brkiter.h"
 
@@ -227,7 +227,7 @@ namespace {
 Handle<JSFunction> CreateBoundFunction(Isolate* isolate,
                                        Handle<JSObject> object,
                                        Builtins::Name builtin_id, int len) {
-  Handle<NativeContext> native_context(isolate->context()->native_context(),
+  Handle<NativeContext> native_context(isolate->context().native_context(),
                                        isolate);
   Handle<Context> context = isolate->factory()->NewBuiltinContext(
       native_context,
@@ -276,15 +276,14 @@ Object LegacyFormatConstructor(BuiltinArguments args, Isolate* isolate,
   // 2. Let format be ? OrdinaryCreateFromConstructor(newTarget,
   // "%<T>Prototype%", ...).
 
-  Handle<JSObject> obj;
+  Handle<Map> map;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, obj,
-      JSObject::New(target, new_target, Handle<AllocationSite>::null()));
-  Handle<T> format = Handle<T>::cast(obj);
+      isolate, map, JSFunction::GetDerivedMap(isolate, target, new_target));
 
   // 3. Perform ? Initialize<T>(Format, locales, options).
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, format, T::Initialize(isolate, format, locales, options));
+  Handle<T> format;
+  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, format,
+                                     T::New(isolate, map, locales, options));
   // 4. Let this be the this value.
   Handle<Object> receiver = args.receiver();
 
@@ -351,21 +350,17 @@ Object DisallowCallConstructor(BuiltinArguments args, Isolate* isolate,
   Handle<JSFunction> target = args.target();
   Handle<JSReceiver> new_target = Handle<JSReceiver>::cast(args.new_target());
 
-  Handle<JSObject> obj;
+  Handle<Map> map;
   // 2. Let result be OrdinaryCreateFromConstructor(NewTarget,
   //    "%<T>Prototype%").
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, obj,
-      JSObject::New(target, new_target, Handle<AllocationSite>::null()));
-  Handle<T> result = Handle<T>::cast(obj);
-  result->set_flags(0);
+      isolate, map, JSFunction::GetDerivedMap(isolate, target, new_target));
 
   Handle<Object> locales = args.atOrUndefined(isolate, 1);
   Handle<Object> options = args.atOrUndefined(isolate, 2);
 
-  // 3. Return Initialize<T>(t, locales, options).
-  RETURN_RESULT_OR_FAILURE(isolate,
-                           T::Initialize(isolate, result, locales, options));
+  // 3. Return New<T>(t, locales, options).
+  RETURN_RESULT_OR_FAILURE(isolate, T::New(isolate, map, locales, options));
 }
 
 /**
@@ -387,14 +382,11 @@ Object CallOrConstructConstructor(BuiltinArguments args, Isolate* isolate) {
   Handle<Object> locales = args.atOrUndefined(isolate, 1);
   Handle<Object> options = args.atOrUndefined(isolate, 2);
 
-  Handle<JSObject> obj;
+  Handle<Map> map;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, obj,
-      JSObject::New(target, new_target, Handle<AllocationSite>::null()));
-  Handle<T> result = Handle<T>::cast(obj);
+      isolate, map, JSFunction::GetDerivedMap(isolate, target, new_target));
 
-  RETURN_RESULT_OR_FAILURE(isolate,
-                           T::Initialize(isolate, result, locales, options));
+  RETURN_RESULT_OR_FAILURE(isolate, T::New(isolate, map, locales, options));
 }
 }  // namespace
 
@@ -482,13 +474,14 @@ BUILTIN(NumberFormatInternalFormatNumber) {
                                        Object::ToNumber(isolate, value));
   }
 
-  icu::NumberFormat* icu_number_format =
-      number_format->icu_number_format()->raw();
-  CHECK_NOT_NULL(icu_number_format);
+  icu::number::LocalizedNumberFormatter* icu_localized_number_formatter =
+      number_format->icu_number_formatter().raw();
+  CHECK_NOT_NULL(icu_localized_number_formatter);
 
+  // Return FormatNumber(nf, x).
   RETURN_RESULT_OR_FAILURE(
-      isolate,
-      JSNumberFormat::FormatNumeric(isolate, *icu_number_format, numeric_obj));
+      isolate, JSNumberFormat::FormatNumeric(
+                   isolate, *icu_localized_number_formatter, numeric_obj));
 }
 
 BUILTIN(DateTimeFormatConstructor) {
@@ -590,12 +583,11 @@ MaybeHandle<JSLocale> CreateLocale(Isolate* isolate,
                                    Handle<JSFunction> constructor,
                                    Handle<JSReceiver> new_target,
                                    Handle<Object> tag, Handle<Object> options) {
-  Handle<JSObject> locale;
+  Handle<Map> map;
   // 6. Let locale be ? OrdinaryCreateFromConstructor(NewTarget,
   // %LocalePrototype%, internalSlotsList).
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, locale,
-      JSObject::New(constructor, new_target, Handle<AllocationSite>::null()),
+      isolate, map, JSFunction::GetDerivedMap(isolate, constructor, new_target),
       JSLocale);
 
   // 7. If Type(tag) is not String or Object, throw a TypeError exception.
@@ -627,8 +619,7 @@ MaybeHandle<JSLocale> CreateLocale(Isolate* isolate,
                                Object::ToObject(isolate, options), JSLocale);
   }
 
-  return JSLocale::Initialize(isolate, Handle<JSLocale>::cast(locale),
-                              locale_string, options_object);
+  return JSLocale::New(isolate, map, locale_string, options_object);
 }
 
 }  // namespace
@@ -969,7 +960,7 @@ BUILTIN(CollatorInternalCompare) {
                                      Object::ToString(isolate, y));
 
   // 7. Return CompareStrings(collator, X, Y).
-  icu::Collator* icu_collator = collator->icu_collator()->raw();
+  icu::Collator* icu_collator = collator->icu_collator().raw();
   CHECK_NOT_NULL(icu_collator);
   return *Intl::CompareStrings(isolate, *icu_collator, string_x, string_y);
 }
@@ -1071,7 +1062,7 @@ BUILTIN(SegmenterPrototypeSegment) {
   RETURN_RESULT_OR_FAILURE(
       isolate,
       JSSegmentIterator::Create(
-          isolate, segmenter_holder->icu_break_iterator()->raw()->clone(),
+          isolate, segmenter_holder->icu_break_iterator().raw()->clone(),
           segmenter_holder->granularity(), text));
 }
 

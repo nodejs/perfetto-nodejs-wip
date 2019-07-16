@@ -6,14 +6,14 @@
 
 #include <set>
 
-#include "src/accessors.h"
 #include "src/ast/ast.h"
 #include "src/base/optional.h"
-#include "src/bootstrapper.h"
-#include "src/counters.h"
-#include "src/message-template.h"
-#include "src/objects-inl.h"
+#include "src/builtins/accessors.h"
+#include "src/common/message-template.h"
+#include "src/init/bootstrapper.h"
+#include "src/logging/counters.h"
 #include "src/objects/module-inl.h"
+#include "src/objects/objects-inl.h"
 #include "src/objects/scope-info.h"
 #include "src/parsing/parse-info.h"
 #include "src/parsing/parser.h"
@@ -40,6 +40,7 @@ Variable* VariableMap::Declare(Zone* zone, Scope* scope,
                                VariableKind kind,
                                InitializationFlag initialization_flag,
                                MaybeAssignedFlag maybe_assigned_flag,
+                               RequiresBrandCheckFlag requires_brand_check,
                                bool* was_added) {
   // AstRawStrings are unambiguous, i.e., the same string is always represented
   // by the same AstRawString*.
@@ -51,8 +52,9 @@ Variable* VariableMap::Declare(Zone* zone, Scope* scope,
   if (*was_added) {
     // The variable has not been declared yet -> insert it.
     DCHECK_EQ(name, p->key);
-    Variable* variable = new (zone) Variable(
-        scope, name, mode, kind, initialization_flag, maybe_assigned_flag);
+    Variable* variable =
+        new (zone) Variable(scope, name, mode, kind, initialization_flag,
+                            maybe_assigned_flag, requires_brand_check);
     p->value = variable;
   }
   return reinterpret_cast<Variable*>(p->value);
@@ -128,7 +130,7 @@ ModuleScope::ModuleScope(DeclarationScope* script_scope,
                          AstValueFactory* avfactory)
     : DeclarationScope(avfactory->zone(), script_scope, MODULE_SCOPE, kModule),
       module_descriptor_(new (avfactory->zone())
-                             ModuleDescriptor(avfactory->zone())) {
+                             SourceTextModuleDescriptor(avfactory->zone())) {
   set_language_mode(LanguageMode::kStrict);
   DeclareThis(avfactory);
 }
@@ -145,9 +147,16 @@ ClassScope::ClassScope(Zone* zone, Scope* outer_scope)
   set_language_mode(LanguageMode::kStrict);
 }
 
-ClassScope::ClassScope(Zone* zone, Handle<ScopeInfo> scope_info)
+ClassScope::ClassScope(Zone* zone, AstValueFactory* ast_value_factory,
+                       Handle<ScopeInfo> scope_info)
     : Scope(zone, CLASS_SCOPE, scope_info) {
   set_language_mode(LanguageMode::kStrict);
+  if (scope_info->HasClassBrand()) {
+    Variable* brand =
+        LookupInScopeInfo(ast_value_factory->dot_brand_string(), this);
+    DCHECK_NOT_NULL(brand);
+    EnsureRareData()->brand = brand;
+  }
 }
 
 Scope::Scope(Zone* zone, ScopeType scope_type, Handle<ScopeInfo> scope_info)
@@ -255,7 +264,6 @@ void Scope::SetDefaults() {
   is_debug_evaluate_scope_ = false;
 
   inner_scope_calls_eval_ = false;
-  force_context_allocation_ = false;
   force_context_allocation_for_parameters_ = false;
 
   is_declaration_scope_ = false;
@@ -303,8 +311,8 @@ Scope* Scope::DeserializeScopeChain(Isolate* isolate, Zone* zone,
   Scope* innermost_scope = nullptr;
   Scope* outer_scope = nullptr;
   while (!scope_info.is_null()) {
-    if (scope_info->scope_type() == WITH_SCOPE) {
-      if (scope_info->IsDebugEvaluateScope()) {
+    if (scope_info.scope_type() == WITH_SCOPE) {
+      if (scope_info.IsDebugEvaluateScope()) {
         outer_scope = new (zone)
             DeclarationScope(zone, FUNCTION_SCOPE, handle(scope_info, isolate));
         outer_scope->set_is_debug_evaluate_scope();
@@ -314,45 +322,46 @@ Scope* Scope::DeserializeScopeChain(Isolate* isolate, Zone* zone,
             new (zone) Scope(zone, WITH_SCOPE, handle(scope_info, isolate));
       }
 
-    } else if (scope_info->scope_type() == SCRIPT_SCOPE) {
+    } else if (scope_info.scope_type() == SCRIPT_SCOPE) {
       // If we reach a script scope, it's the outermost scope. Install the
       // scope info of this script context onto the existing script scope to
       // avoid nesting script scopes.
       if (deserialization_mode == DeserializationMode::kIncludingVariables) {
         script_scope->SetScriptScopeInfo(handle(scope_info, isolate));
       }
-      DCHECK(!scope_info->HasOuterScopeInfo());
+      DCHECK(!scope_info.HasOuterScopeInfo());
       break;
-    } else if (scope_info->scope_type() == FUNCTION_SCOPE) {
+    } else if (scope_info.scope_type() == FUNCTION_SCOPE) {
       outer_scope = new (zone)
           DeclarationScope(zone, FUNCTION_SCOPE, handle(scope_info, isolate));
-      if (scope_info->IsAsmModule()) {
+      if (scope_info.IsAsmModule()) {
         outer_scope->AsDeclarationScope()->set_is_asm_module();
       }
-    } else if (scope_info->scope_type() == EVAL_SCOPE) {
+    } else if (scope_info.scope_type() == EVAL_SCOPE) {
       outer_scope = new (zone)
           DeclarationScope(zone, EVAL_SCOPE, handle(scope_info, isolate));
-    } else if (scope_info->scope_type() == CLASS_SCOPE) {
-      outer_scope = new (zone) ClassScope(zone, handle(scope_info, isolate));
-    } else if (scope_info->scope_type() == BLOCK_SCOPE) {
-      if (scope_info->is_declaration_scope()) {
+    } else if (scope_info.scope_type() == CLASS_SCOPE) {
+      outer_scope = new (zone)
+          ClassScope(zone, ast_value_factory, handle(scope_info, isolate));
+    } else if (scope_info.scope_type() == BLOCK_SCOPE) {
+      if (scope_info.is_declaration_scope()) {
         outer_scope = new (zone)
             DeclarationScope(zone, BLOCK_SCOPE, handle(scope_info, isolate));
       } else {
         outer_scope =
             new (zone) Scope(zone, BLOCK_SCOPE, handle(scope_info, isolate));
       }
-    } else if (scope_info->scope_type() == MODULE_SCOPE) {
+    } else if (scope_info.scope_type() == MODULE_SCOPE) {
       outer_scope = new (zone)
           ModuleScope(isolate, handle(scope_info, isolate), ast_value_factory);
     } else {
-      DCHECK_EQ(scope_info->scope_type(), CATCH_SCOPE);
-      DCHECK_EQ(scope_info->ContextLocalCount(), 1);
-      DCHECK_EQ(scope_info->ContextLocalMode(0), VariableMode::kVar);
-      DCHECK_EQ(scope_info->ContextLocalInitFlag(0), kCreatedInitialized);
-      String name = scope_info->ContextLocalName(0);
+      DCHECK_EQ(scope_info.scope_type(), CATCH_SCOPE);
+      DCHECK_EQ(scope_info.ContextLocalCount(), 1);
+      DCHECK_EQ(scope_info.ContextLocalMode(0), VariableMode::kVar);
+      DCHECK_EQ(scope_info.ContextLocalInitFlag(0), kCreatedInitialized);
+      String name = scope_info.ContextLocalName(0);
       MaybeAssignedFlag maybe_assigned =
-          scope_info->ContextLocalMaybeAssignedFlag(0);
+          scope_info.ContextLocalMaybeAssignedFlag(0);
       outer_scope = new (zone)
           Scope(zone, ast_value_factory->GetString(handle(name, isolate)),
                 maybe_assigned, handle(scope_info, isolate));
@@ -365,8 +374,8 @@ Scope* Scope::DeserializeScopeChain(Isolate* isolate, Zone* zone,
     }
     current_scope = outer_scope;
     if (innermost_scope == nullptr) innermost_scope = current_scope;
-    scope_info = scope_info->HasOuterScopeInfo() ? scope_info->OuterScopeInfo()
-                                                 : ScopeInfo();
+    scope_info = scope_info.HasOuterScopeInfo() ? scope_info.OuterScopeInfo()
+                                                : ScopeInfo();
   }
 
   if (deserialization_mode == DeserializationMode::kIncludingVariables &&
@@ -498,8 +507,9 @@ void DeclarationScope::HoistSloppyBlockFunctions(AstNodeFactory* factory) {
       DCHECK(is_being_lazily_parsed_);
       bool was_added;
       Variable* var = DeclareVariableName(name, VariableMode::kVar, &was_added);
-      if (sloppy_block_function->init() == Token::ASSIGN)
-        var->set_maybe_assigned();
+      if (sloppy_block_function->init() == Token::ASSIGN) {
+        var->SetMaybeAssigned();
+      }
     }
   }
 }
@@ -777,11 +787,13 @@ Variable* Scope::LookupInScopeInfo(const AstRawString* name, Scope* cache) {
   VariableMode mode;
   InitializationFlag init_flag;
   MaybeAssignedFlag maybe_assigned_flag;
+  RequiresBrandCheckFlag requires_brand_check = kNoBrandCheck;
 
   {
     location = VariableLocation::CONTEXT;
     index = ScopeInfo::ContextSlotIndex(*scope_info_, name_handle, &mode,
-                                        &init_flag, &maybe_assigned_flag);
+                                        &init_flag, &maybe_assigned_flag,
+                                        &requires_brand_check);
     found = index >= 0;
   }
 
@@ -806,9 +818,9 @@ Variable* Scope::LookupInScopeInfo(const AstRawString* name, Scope* cache) {
   }
 
   bool was_added;
-  Variable* var =
-      cache->variables_.Declare(zone(), this, name, mode, NORMAL_VARIABLE,
-                                init_flag, maybe_assigned_flag, &was_added);
+  Variable* var = cache->variables_.Declare(
+      zone(), this, name, mode, NORMAL_VARIABLE, init_flag, maybe_assigned_flag,
+      requires_brand_check, &was_added);
   DCHECK(was_added);
   var->AllocateTo(location, index);
   return var;
@@ -881,7 +893,7 @@ Variable* Scope::DeclareLocal(const AstRawString* name, VariableMode mode,
   // assigned because they might be accessed by a lazily parsed top-level
   // function, which, for efficiency, we preparse without variable tracking.
   if (is_script_scope() || is_module_scope()) {
-    if (mode != VariableMode::kConst) var->set_maybe_assigned();
+    if (mode != VariableMode::kConst) var->SetMaybeAssigned();
     var->set_is_used();
   }
 
@@ -930,7 +942,7 @@ Variable* Scope::DeclareVariable(
       DCHECK(*was_added);
     }
   } else {
-    var->set_maybe_assigned();
+    var->SetMaybeAssigned();
     if (V8_UNLIKELY(IsLexicalVariableMode(mode) ||
                     IsLexicalVariableMode(var->mode()))) {
       // The name was declared in this scope before; check for conflicting
@@ -1001,7 +1013,7 @@ Variable* Scope::DeclareVariableName(const AstRawString* name,
       }
       // Sloppy block function redefinition.
     }
-    var->set_maybe_assigned();
+    var->SetMaybeAssigned();
   }
   var->set_is_used();
   return var;
@@ -1032,7 +1044,7 @@ Variable* DeclarationScope::DeclareDynamicGlobal(const AstRawString* name,
   bool was_added;
   return cache->variables_.Declare(
       zone(), this, name, VariableMode::kDynamicGlobal, kind,
-      kCreatedInitialized, kNotAssigned, &was_added);
+      kCreatedInitialized, kNotAssigned, kNoBrandCheck, &was_added);
   // TODO(neis): Mark variable as maybe-assigned?
 }
 
@@ -1055,7 +1067,7 @@ Variable* Scope::NewTemporary(const AstRawString* name,
   Variable* var = new (zone()) Variable(scope, name, VariableMode::kTemporary,
                                         NORMAL_VARIABLE, kCreatedInitialized);
   scope->AddLocal(var);
-  if (maybe_assigned == kMaybeAssigned) var->set_maybe_assigned();
+  if (maybe_assigned == kMaybeAssigned) var->SetMaybeAssigned();
   return var;
 }
 
@@ -1393,7 +1405,7 @@ void Scope::AnalyzePartially(DeclarationScope* max_outer_scope,
         }
       } else {
         var->set_is_used();
-        if (proxy->is_assigned()) var->set_maybe_assigned();
+        if (proxy->is_assigned()) var->SetMaybeAssigned();
       }
     }
 
@@ -1584,6 +1596,10 @@ void PrintVar(int indent, Variable* var) {
     if (comma) PrintF(", ");
     PrintF("hole initialization elided");
   }
+  if (var->requires_brand_check()) {
+    if (comma) PrintF(", ");
+    PrintF("requires brand check");
+  }
   PrintF("\n");
 }
 
@@ -1710,6 +1726,11 @@ void Scope::Print(int n) {
     if (class_scope->rare_data_ != nullptr) {
       PrintMap(n1, "// private name vars:\n",
                &(class_scope->rare_data_->private_name_map), true, function);
+      Variable* brand = class_scope->brand();
+      if (brand != nullptr) {
+        Indent(n1, "// brand var:\n");
+        PrintVar(n1, brand);
+      }
     }
   }
 
@@ -1753,9 +1774,9 @@ Variable* Scope::NonLocal(const AstRawString* name, VariableMode mode) {
   // Declare a new non-local.
   DCHECK(IsDynamicVariableMode(mode));
   bool was_added;
-  Variable* var =
-      variables_.Declare(zone(), this, name, mode, NORMAL_VARIABLE,
-                         kCreatedInitialized, kNotAssigned, &was_added);
+  Variable* var = variables_.Declare(zone(), this, name, mode, NORMAL_VARIABLE,
+                                     kCreatedInitialized, kNotAssigned,
+                                     kNoBrandCheck, &was_added);
   // Allocate it by giving it a dynamic lookup.
   var->AllocateTo(VariableLocation::LOOKUP, -1);
   return var;
@@ -1866,11 +1887,14 @@ Variable* Scope::LookupWith(VariableProxy* proxy, Scope* scope,
     DCHECK(!scope->already_resolved_);
     var->set_is_used();
     var->ForceContextAllocation();
-    if (proxy->is_assigned()) var->set_maybe_assigned();
+    if (proxy->is_assigned()) var->SetMaybeAssigned();
   }
   if (entry_point != nullptr) entry_point->variables_.Remove(var);
   Scope* target = entry_point == nullptr ? scope : entry_point;
-  return target->NonLocal(proxy->raw_name(), VariableMode::kDynamic);
+  Variable* dynamic =
+      target->NonLocal(proxy->raw_name(), VariableMode::kDynamic);
+  dynamic->set_local_if_not_shadowed(var);
+  return dynamic;
 }
 
 Variable* Scope::LookupSloppyEval(VariableProxy* proxy, Scope* scope,
@@ -1899,7 +1923,7 @@ Variable* Scope::LookupSloppyEval(VariableProxy* proxy, Scope* scope,
   // script scope are always dynamic.
   if (var->IsGlobalObjectProperty()) {
     Scope* target = entry_point == nullptr ? scope : entry_point;
-    return target->NonLocal(proxy->raw_name(), VariableMode::kDynamicGlobal);
+    var = target->NonLocal(proxy->raw_name(), VariableMode::kDynamicGlobal);
   }
 
   if (var->is_dynamic()) return var;
@@ -1997,7 +2021,7 @@ void Scope::ResolvePreparsedVariable(VariableProxy* proxy, Scope* scope,
       var->set_is_used();
       if (!var->is_dynamic()) {
         var->ForceContextAllocation();
-        if (proxy->is_assigned()) var->set_maybe_assigned();
+        if (proxy->is_assigned()) var->SetMaybeAssigned();
         return;
       }
     }
@@ -2041,7 +2065,7 @@ bool Scope::MustAllocate(Variable* var) {
   if (!var->raw_name()->IsEmpty() &&
       (inner_scope_calls_eval_ || is_catch_scope() || is_script_scope())) {
     var->set_is_used();
-    if (inner_scope_calls_eval_) var->set_maybe_assigned();
+    if (inner_scope_calls_eval_) var->SetMaybeAssigned();
   }
   DCHECK(!var->has_forced_context_allocation() || var->is_used());
   // Global variables do not need to be allocated.
@@ -2111,7 +2135,7 @@ void DeclarationScope::AllocateParameterLocals() {
     DCHECK_EQ(this, var->scope());
     if (has_mapped_arguments) {
       var->set_is_used();
-      var->set_maybe_assigned();
+      var->SetMaybeAssigned();
       var->ForceContextAllocation();
     }
     AllocateParameter(var, i);
@@ -2302,12 +2326,13 @@ int Scope::ContextLocalCount() const {
          (is_function_var_in_context ? 1 : 0);
 }
 
-Variable* ClassScope::DeclarePrivateName(const AstRawString* name,
-                                         bool* was_added) {
+Variable* ClassScope::DeclarePrivateName(
+    const AstRawString* name, RequiresBrandCheckFlag requires_brand_check,
+    bool* was_added) {
   Variable* result = EnsureRareData()->private_name_map.Declare(
       zone(), this, name, VariableMode::kConst, NORMAL_VARIABLE,
       InitializationFlag::kNeedsInitialization,
-      MaybeAssignedFlag::kMaybeAssigned, was_added);
+      MaybeAssignedFlag::kMaybeAssigned, requires_brand_check, was_added);
   if (*was_added) {
     locals_.Add(result);
   }
@@ -2391,8 +2416,10 @@ Variable* ClassScope::LookupPrivateNameInScopeInfo(const AstRawString* name) {
   VariableMode mode;
   InitializationFlag init_flag;
   MaybeAssignedFlag maybe_assigned_flag;
-  int index = ScopeInfo::ContextSlotIndex(*scope_info_, name_handle, &mode,
-                                          &init_flag, &maybe_assigned_flag);
+  RequiresBrandCheckFlag requires_brand_check;
+  int index =
+      ScopeInfo::ContextSlotIndex(*scope_info_, name_handle, &mode, &init_flag,
+                                  &maybe_assigned_flag, &requires_brand_check);
   if (index < 0) {
     return nullptr;
   }
@@ -2404,7 +2431,7 @@ Variable* ClassScope::LookupPrivateNameInScopeInfo(const AstRawString* name) {
   // Add the found private name to the map to speed up subsequent
   // lookups for the same name.
   bool was_added;
-  Variable* var = DeclarePrivateName(name, &was_added);
+  Variable* var = DeclarePrivateName(name, requires_brand_check, &was_added);
   DCHECK(was_added);
   var->AllocateTo(VariableLocation::CONTEXT, index);
   return var;
@@ -2441,8 +2468,7 @@ bool ClassScope::ResolvePrivateNames(ParseInfo* info) {
       Scanner::Location loc = proxy->location();
       info->pending_error_handler()->ReportMessageAt(
           loc.beg_pos, loc.end_pos,
-          MessageTemplate::kInvalidPrivateFieldResolution, proxy->raw_name(),
-          kSyntaxError);
+          MessageTemplate::kInvalidPrivateFieldResolution, proxy->raw_name());
       return false;
     } else {
       var->set_is_used();
@@ -2510,6 +2536,22 @@ VariableProxy* ClassScope::ResolvePrivateNamesPartially() {
 
   DCHECK(unresolved.is_empty());
   return nullptr;
+}
+
+Variable* ClassScope::DeclareBrandVariable(AstValueFactory* ast_value_factory,
+                                           int class_token_pos) {
+  DCHECK_IMPLIES(rare_data_ != nullptr, rare_data_->brand == nullptr);
+  bool was_added;
+  Variable* brand = Declare(zone(), ast_value_factory->dot_brand_string(),
+                            VariableMode::kConst, NORMAL_VARIABLE,
+                            InitializationFlag::kNeedsInitialization,
+                            MaybeAssignedFlag::kMaybeAssigned, &was_added);
+  DCHECK(was_added);
+  brand->ForceContextAllocation();
+  brand->set_is_used();
+  EnsureRareData()->brand = brand;
+  brand->set_initializer_position(class_token_pos);
+  return brand;
 }
 
 }  // namespace internal

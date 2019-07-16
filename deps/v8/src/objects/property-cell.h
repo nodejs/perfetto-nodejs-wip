@@ -6,7 +6,7 @@
 #define V8_OBJECTS_PROPERTY_CELL_H_
 
 #include "src/objects/heap-object.h"
-#include "torque-generated/class-definitions-from-dsl.h"
+#include "torque-generated/field-offsets-tq.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -47,7 +47,7 @@ class PropertyCell : public HeapObject {
   static Handle<PropertyCell> InvalidateEntry(
       Isolate* isolate, Handle<GlobalDictionary> dictionary, int entry);
 
-  static void SetValueWithInvalidation(Isolate* isolate,
+  static void SetValueWithInvalidation(Isolate* isolate, const char* cell_name,
                                        Handle<PropertyCell> cell,
                                        Handle<Object> new_value);
 

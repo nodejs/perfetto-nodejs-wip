@@ -31,15 +31,16 @@ namespace arguments {
   // It is difficult to actually check/assert this, since interpreted or JITted
   // frames are StandardFrames, but so are hand-written builtins. Doing that
   // more refined check would be prohibitively expensive.
+  @export
   macro GetArgumentsFrameAndCount(implicit context: Context)(f: JSFunction):
       ArgumentsInfo {
-    let frame: Frame = LoadParentFramePointer();
+    const frame: Frame = LoadParentFramePointer();
     assert(frame.function == f);
 
     const shared: SharedFunctionInfo = f.shared_function_info;
     const formalParameterCount: bint =
         Convert<bint>(Convert<int32>(shared.formal_parameter_count));
-    let argumentCount: bint = formalParameterCount;
+    const argumentCount: bint = formalParameterCount;
 
     const adaptor: ArgumentsAdaptorFrame =
         Cast<ArgumentsAdaptorFrame>(frame.caller)

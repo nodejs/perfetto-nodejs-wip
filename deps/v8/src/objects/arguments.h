@@ -8,7 +8,7 @@
 #include "src/objects/fixed-array.h"
 #include "src/objects/js-objects.h"
 #include "src/objects/struct.h"
-#include "torque-generated/class-definitions-from-dsl.h"
+#include "torque-generated/field-offsets-tq.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -102,8 +102,8 @@ class SloppyArgumentsElements : public FixedArray {
   static const int kArgumentsIndex = 1;
   static const uint32_t kParameterMapStart = 2;
 
-  inline Context context();
-  inline FixedArray arguments();
+  DECL_GETTER(context, Context)
+  DECL_GETTER(arguments, FixedArray)
   inline void set_arguments(FixedArray arguments);
   inline uint32_t parameter_map_length();
   inline Object get_mapped_entry(uint32_t entry);

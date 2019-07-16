@@ -8,16 +8,17 @@
 #include <iosfwd>
 
 #include "src/base/compiler-specific.h"
+#include "src/codegen/machine-type.h"
+#include "src/common/globals.h"
 #include "src/compiler/operator.h"
 #include "src/compiler/types.h"
-#include "src/deoptimize-reason.h"
-#include "src/globals.h"
-#include "src/handles.h"
-#include "src/machine-type.h"
-#include "src/maybe-handles.h"
-#include "src/objects.h"
-#include "src/type-hints.h"
-#include "src/vector-slot-pair.h"
+#include "src/compiler/vector-slot-pair.h"
+#include "src/compiler/write-barrier-kind.h"
+#include "src/deoptimizer/deoptimize-reason.h"
+#include "src/handles/handles.h"
+#include "src/handles/maybe-handles.h"
+#include "src/objects/objects.h"
+#include "src/objects/type-hints.h"
 #include "src/zone/zone-handle-set.h"
 
 namespace v8 {
@@ -55,6 +56,7 @@ struct FieldAccess {
   MachineType machine_type;       // machine type of the field.
   WriteBarrierKind write_barrier_kind;  // write barrier hint.
   LoadSensitivity load_sensitivity;     // load safety for poisoning.
+  PropertyConstness constness;  // whether the field is assigned only once
 
   FieldAccess()
       : base_is_tagged(kTaggedBase),
@@ -62,12 +64,14 @@ struct FieldAccess {
         type(Type::None()),
         machine_type(MachineType::None()),
         write_barrier_kind(kFullWriteBarrier),
-        load_sensitivity(LoadSensitivity::kUnsafe) {}
+        load_sensitivity(LoadSensitivity::kUnsafe),
+        constness(PropertyConstness::kMutable) {}
 
   FieldAccess(BaseTaggedness base_is_tagged, int offset, MaybeHandle<Name> name,
               MaybeHandle<Map> map, Type type, MachineType machine_type,
               WriteBarrierKind write_barrier_kind,
-              LoadSensitivity load_sensitivity = LoadSensitivity::kUnsafe)
+              LoadSensitivity load_sensitivity = LoadSensitivity::kUnsafe,
+              PropertyConstness constness = PropertyConstness::kMutable)
       : base_is_tagged(base_is_tagged),
         offset(offset),
         name(name),
@@ -75,7 +79,8 @@ struct FieldAccess {
         type(type),
         machine_type(machine_type),
         write_barrier_kind(write_barrier_kind),
-        load_sensitivity(load_sensitivity) {}
+        load_sensitivity(load_sensitivity),
+        constness(constness) {}
 
   int tag() const { return base_is_tagged == kTaggedBase ? kHeapObjectTag : 0; }
 };
@@ -136,6 +141,30 @@ V8_EXPORT_PRIVATE ElementAccess const& ElementAccessOf(const Operator* op)
     V8_WARN_UNUSED_RESULT;
 
 ExternalArrayType ExternalArrayTypeOf(const Operator* op) V8_WARN_UNUSED_RESULT;
+
+// An access descriptor for loads/stores of CSA-accessible structures.
+struct ObjectAccess {
+  MachineType machine_type;             // machine type of the field.
+  WriteBarrierKind write_barrier_kind;  // write barrier hint.
+
+  ObjectAccess()
+      : machine_type(MachineType::None()),
+        write_barrier_kind(kFullWriteBarrier) {}
+
+  ObjectAccess(MachineType machine_type, WriteBarrierKind write_barrier_kind)
+      : machine_type(machine_type), write_barrier_kind(write_barrier_kind) {}
+
+  int tag() const { return kHeapObjectTag; }
+};
+
+V8_EXPORT_PRIVATE bool operator==(ObjectAccess const&, ObjectAccess const&);
+
+size_t hash_value(ObjectAccess const&);
+
+V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, ObjectAccess const&);
+
+V8_EXPORT_PRIVATE ObjectAccess const& ObjectAccessOf(const Operator* op)
+    V8_WARN_UNUSED_RESULT;
 
 // The ConvertReceiverMode is used as parameter by ConvertReceiver operators.
 ConvertReceiverMode ConvertReceiverModeOf(Operator const* op)
@@ -446,10 +475,15 @@ enum class NumberOperationHint : uint8_t {
   kNumberOrOddball,    // Inputs were Number or Oddball, output was Number.
 };
 
+enum class BigIntOperationHint : uint8_t {
+  kBigInt,
+};
+
 size_t hash_value(NumberOperationHint);
+size_t hash_value(BigIntOperationHint);
 
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, NumberOperationHint);
-
+V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, BigIntOperationHint);
 V8_EXPORT_PRIVATE NumberOperationHint NumberOperationHintOf(const Operator* op)
     V8_WARN_UNUSED_RESULT;
 
@@ -480,15 +514,21 @@ bool IsRestLengthOf(const Operator* op) V8_WARN_UNUSED_RESULT;
 
 class AllocateParameters {
  public:
-  AllocateParameters(Type type, AllocationType allocation_type)
-      : type_(type), allocation_type_(allocation_type) {}
+  AllocateParameters(
+      Type type, AllocationType allocation_type,
+      AllowLargeObjects allow_large_objects = AllowLargeObjects::kFalse)
+      : type_(type),
+        allocation_type_(allocation_type),
+        allow_large_objects_(allow_large_objects) {}
 
   Type type() const { return type_; }
   AllocationType allocation_type() const { return allocation_type_; }
+  AllowLargeObjects allow_large_objects() const { return allow_large_objects_; }
 
  private:
   Type type_;
   AllocationType allocation_type_;
+  AllowLargeObjects allow_large_objects_;
 };
 
 bool IsCheckedWithFeedback(const Operator* op);
@@ -498,6 +538,9 @@ size_t hash_value(AllocateParameters);
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, AllocateParameters);
 
 bool operator==(AllocateParameters const&, AllocateParameters const&);
+
+const AllocateParameters& AllocateParametersOf(const Operator* op)
+    V8_WARN_UNUSED_RESULT;
 
 AllocationType AllocationTypeOf(const Operator* op) V8_WARN_UNUSED_RESULT;
 
@@ -596,6 +639,9 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
 
   const Operator* NumberSilenceNaN();
 
+  const Operator* BigIntAdd();
+  const Operator* BigIntNegate();
+
   const Operator* SpeculativeSafeIntegerAdd(NumberOperationHint hint);
   const Operator* SpeculativeSafeIntegerSubtract(NumberOperationHint hint);
 
@@ -615,8 +661,13 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* SpeculativeNumberLessThanOrEqual(NumberOperationHint hint);
   const Operator* SpeculativeNumberEqual(NumberOperationHint hint);
 
+  const Operator* SpeculativeBigIntAdd(BigIntOperationHint hint);
+  const Operator* SpeculativeBigIntNegate(BigIntOperationHint hint);
+  const Operator* BigIntAsUintN(int bits);
+
   const Operator* ReferenceEqual();
   const Operator* SameValue();
+  const Operator* SameValueNumbersOnly();
 
   const Operator* TypeOf();
 
@@ -627,9 +678,10 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* StringLessThan();
   const Operator* StringLessThanOrEqual();
   const Operator* StringCharCodeAt();
-  const Operator* StringCodePointAt(UnicodeEncoding encoding);
+  const Operator* StringCodePointAt();
   const Operator* StringFromSingleCharCode();
-  const Operator* StringFromSingleCodePoint(UnicodeEncoding encoding);
+  const Operator* StringFromSingleCodePoint();
+  const Operator* StringFromCodePointAt();
   const Operator* StringIndexOf();
   const Operator* StringLength();
   const Operator* StringToLowerCaseIntl();
@@ -647,6 +699,7 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* PlainPrimitiveToWord32();
   const Operator* PlainPrimitiveToFloat64();
 
+  const Operator* ChangeCompressedSignedToInt32();
   const Operator* ChangeTaggedSignedToInt32();
   const Operator* ChangeTaggedSignedToInt64();
   const Operator* ChangeTaggedToInt32();
@@ -656,6 +709,7 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* ChangeTaggedToTaggedSigned();
   const Operator* ChangeCompressedToTaggedSigned();
   const Operator* ChangeTaggedToCompressedSigned();
+  const Operator* ChangeInt31ToCompressedSigned();
   const Operator* ChangeInt31ToTaggedSigned();
   const Operator* ChangeInt32ToTagged();
   const Operator* ChangeInt64ToTagged();
@@ -665,6 +719,8 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* ChangeFloat64ToTaggedPointer();
   const Operator* ChangeTaggedToBit();
   const Operator* ChangeBitToTagged();
+  const Operator* TruncateBigIntToUint64();
+  const Operator* ChangeUint64ToBigInt();
   const Operator* TruncateTaggedToWord32();
   const Operator* TruncateTaggedToFloat64();
   const Operator* TruncateTaggedToBit();
@@ -713,6 +769,7 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
                                        const VectorSlotPair& feedback);
   const Operator* CheckedTaggedToTaggedPointer(const VectorSlotPair& feedback);
   const Operator* CheckedTaggedToTaggedSigned(const VectorSlotPair& feedback);
+  const Operator* CheckBigInt(const VectorSlotPair& feedback);
   const Operator* CheckedCompressedToTaggedPointer(
       const VectorSlotPair& feedback);
   const Operator* CheckedCompressedToTaggedSigned(
@@ -788,20 +845,15 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* Allocate(Type type,
                            AllocationType allocation = AllocationType::kYoung);
   const Operator* AllocateRaw(
-      Type type, AllocationType allocation = AllocationType::kYoung);
+      Type type, AllocationType allocation = AllocationType::kYoung,
+      AllowLargeObjects allow_large_objects = AllowLargeObjects::kFalse);
 
   const Operator* LoadFieldByIndex();
   const Operator* LoadField(FieldAccess const&);
   const Operator* StoreField(FieldAccess const&);
 
-  const Operator* LoadMessage();
-  const Operator* StoreMessage();
-
   // load-element [base + index]
   const Operator* LoadElement(ElementAccess const&);
-
-  // load-stack-argument [base + index]
-  const Operator* LoadStackArgument();
 
   // store-element [base + index], value
   const Operator* StoreElement(ElementAccess const&);
@@ -819,20 +871,29 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
   const Operator* TransitionAndStoreNonNumberElement(Handle<Map> fast_map,
                                                      Type value_type);
 
+  // load-from-object [base + offset]
+  const Operator* LoadFromObject(ObjectAccess const&);
+
+  // store-to-object [base + offset], value
+  const Operator* StoreToObject(ObjectAccess const&);
+
   // load-typed-element buffer, [base + external + index]
   const Operator* LoadTypedElement(ExternalArrayType const&);
 
-  // load-data-view-element buffer, [base + byte_offset + index]
+  // load-data-view-element object, [base + index]
   const Operator* LoadDataViewElement(ExternalArrayType const&);
 
   // store-typed-element buffer, [base + external + index], value
   const Operator* StoreTypedElement(ExternalArrayType const&);
 
-  // store-data-view-element buffer, [base + byte_offset + index], value
+  // store-data-view-element object, [base + index], value
   const Operator* StoreDataViewElement(ExternalArrayType const&);
 
   // Abort (for terminating execution on internal error).
   const Operator* RuntimeAbort(AbortReason reason);
+
+  // Abort if the value input does not inhabit the given type
+  const Operator* AssertType(Type type);
 
   const Operator* DateNow();
 

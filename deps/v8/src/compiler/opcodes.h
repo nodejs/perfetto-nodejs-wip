@@ -7,7 +7,7 @@
 
 #include <iosfwd>
 
-#include "src/globals.h"
+#include "src/common/globals.h"
 
 // Opcodes for control operators.
 #define CONTROL_OP_LIST(V) \
@@ -45,6 +45,7 @@
   V(NumberConstant)           \
   V(PointerConstant)          \
   V(HeapConstant)             \
+  V(CompressedHeapConstant)   \
   V(RelocatableInt32Constant) \
   V(RelocatableInt64Constant)
 
@@ -81,7 +82,8 @@
   INNER_OP_LIST(V)        \
   V(Unreachable)          \
   V(DeadValue)            \
-  V(Dead)
+  V(Dead)                 \
+  V(StaticAssert)
 
 // Opcodes for JavaScript operators.
 #define JS_COMPARE_BINOP_LIST(V) \
@@ -230,6 +232,7 @@
 
 // Opcodes for VirtuaMachine-level operators.
 #define SIMPLIFIED_CHANGE_OP_LIST(V) \
+  V(ChangeCompressedSignedToInt32)   \
   V(ChangeTaggedSignedToInt32)       \
   V(ChangeTaggedSignedToInt64)       \
   V(ChangeTaggedToInt32)             \
@@ -239,6 +242,7 @@
   V(ChangeTaggedToTaggedSigned)      \
   V(ChangeCompressedToTaggedSigned)  \
   V(ChangeTaggedToCompressedSigned)  \
+  V(ChangeInt31ToCompressedSigned)   \
   V(ChangeInt31ToTaggedSigned)       \
   V(ChangeInt32ToTagged)             \
   V(ChangeInt64ToTagged)             \
@@ -248,6 +252,8 @@
   V(ChangeFloat64ToTaggedPointer)    \
   V(ChangeTaggedToBit)               \
   V(ChangeBitToTagged)               \
+  V(ChangeUint64ToBigInt)            \
+  V(TruncateBigIntToUint64)          \
   V(TruncateTaggedToWord32)          \
   V(TruncateTaggedToFloat64)         \
   V(TruncateTaggedToBit)             \
@@ -293,6 +299,7 @@
   V(SpeculativeNumberLessThanOrEqual)    \
   V(ReferenceEqual)                      \
   V(SameValue)                           \
+  V(SameValueNumbersOnly)                \
   V(NumberSameValue)                     \
   V(StringEqual)                         \
   V(StringLessThan)                      \
@@ -315,6 +322,8 @@
   V(NumberMax)                          \
   V(NumberMin)                          \
   V(NumberPow)
+
+#define SIMPLIFIED_BIGINT_BINOP_LIST(V) V(BigIntAdd)
 
 #define SIMPLIFIED_SPECULATIVE_NUMBER_BINOP_LIST(V) \
   V(SpeculativeNumberAdd)                           \
@@ -367,6 +376,11 @@
   V(NumberToUint8Clamped)              \
   V(NumberSilenceNaN)
 
+#define SIMPLIFIED_BIGINT_UNOP_LIST(V) \
+  V(BigIntAsUintN)                     \
+  V(BigIntNegate)                      \
+  V(CheckBigInt)
+
 #define SIMPLIFIED_SPECULATIVE_NUMBER_UNOP_LIST(V) V(SpeculativeToNumber)
 
 #define SIMPLIFIED_OTHER_OP_LIST(V)     \
@@ -380,6 +394,7 @@
   V(StringCodePointAt)                  \
   V(StringFromSingleCharCode)           \
   V(StringFromSingleCodePoint)          \
+  V(StringFromCodePointAt)              \
   V(StringIndexOf)                      \
   V(StringLength)                       \
   V(StringToLowerCaseIntl)              \
@@ -409,14 +424,13 @@
   V(LoadFieldByIndex)                   \
   V(LoadField)                          \
   V(LoadElement)                        \
-  V(LoadMessage)                        \
   V(LoadTypedElement)                   \
+  V(LoadFromObject)                     \
   V(LoadDataViewElement)                \
-  V(LoadStackArgument)                  \
   V(StoreField)                         \
   V(StoreElement)                       \
-  V(StoreMessage)                       \
   V(StoreTypedElement)                  \
+  V(StoreToObject)                      \
   V(StoreDataViewElement)               \
   V(StoreSignedSmallElement)            \
   V(TransitionAndStoreElement)          \
@@ -460,16 +474,24 @@
   V(FindOrderedHashMapEntryForInt32Key) \
   V(PoisonIndex)                        \
   V(RuntimeAbort)                       \
+  V(AssertType)                         \
   V(DateNow)
+
+#define SIMPLIFIED_SPECULATIVE_BIGINT_BINOP_LIST(V) V(SpeculativeBigIntAdd)
+#define SIMPLIFIED_SPECULATIVE_BIGINT_UNOP_LIST(V) V(SpeculativeBigIntNegate)
 
 #define SIMPLIFIED_OP_LIST(V)                 \
   SIMPLIFIED_CHANGE_OP_LIST(V)                \
   SIMPLIFIED_CHECKED_OP_LIST(V)               \
   SIMPLIFIED_COMPARE_BINOP_LIST(V)            \
   SIMPLIFIED_NUMBER_BINOP_LIST(V)             \
+  SIMPLIFIED_BIGINT_BINOP_LIST(V)             \
   SIMPLIFIED_SPECULATIVE_NUMBER_BINOP_LIST(V) \
   SIMPLIFIED_NUMBER_UNOP_LIST(V)              \
+  SIMPLIFIED_BIGINT_UNOP_LIST(V)              \
   SIMPLIFIED_SPECULATIVE_NUMBER_UNOP_LIST(V)  \
+  SIMPLIFIED_SPECULATIVE_BIGINT_UNOP_LIST(V)  \
+  SIMPLIFIED_SPECULATIVE_BIGINT_BINOP_LIST(V) \
   SIMPLIFIED_OTHER_OP_LIST(V)
 
 // Opcodes for Machine-level operators.
@@ -615,7 +637,7 @@
   MACHINE_FLOAT64_BINOP_LIST(V)             \
   MACHINE_FLOAT64_UNOP_LIST(V)              \
   MACHINE_WORD64_ATOMIC_OP_LIST(V)          \
-  V(DebugAbort)                             \
+  V(AbortCSAAssert)                         \
   V(DebugBreak)                             \
   V(Comment)                                \
   V(Load)                                   \
@@ -630,6 +652,7 @@
   V(Word64ReverseBytes)                     \
   V(Int64AbsWithOverflow)                   \
   V(BitcastTaggedToWord)                    \
+  V(BitcastTaggedSignedToWord)              \
   V(BitcastWordToTagged)                    \
   V(BitcastWordToTaggedSigned)              \
   V(TruncateFloat64ToWord32)                \
@@ -717,6 +740,11 @@
   V(UnsafePointerAdd)
 
 #define MACHINE_SIMD_OP_LIST(V) \
+  V(F64x2Splat)                 \
+  V(F64x2ExtractLane)           \
+  V(F64x2ReplaceLane)           \
+  V(F64x2Eq)                    \
+  V(F64x2Ne)                    \
   V(F32x4Splat)                 \
   V(F32x4ExtractLane)           \
   V(F32x4ReplaceLane)           \
@@ -738,6 +766,21 @@
   V(F32x4Le)                    \
   V(F32x4Gt)                    \
   V(F32x4Ge)                    \
+  V(I64x2Splat)                 \
+  V(I64x2ExtractLane)           \
+  V(I64x2ReplaceLane)           \
+  V(I64x2Neg)                   \
+  V(I64x2Shl)                   \
+  V(I64x2ShrS)                  \
+  V(I64x2Add)                   \
+  V(I64x2Sub)                   \
+  V(I64x2Eq)                    \
+  V(I64x2Ne)                    \
+  V(I64x2GtS)                   \
+  V(I64x2GeS)                   \
+  V(I64x2ShrU)                  \
+  V(I64x2GtU)                   \
+  V(I64x2GeU)                   \
   V(I32x4Splat)                 \
   V(I32x4ExtractLane)           \
   V(I32x4ReplaceLane)           \
@@ -843,6 +886,8 @@
   V(S128Xor)                    \
   V(S128Select)                 \
   V(S8x16Shuffle)               \
+  V(S1x2AnyTrue)                \
+  V(S1x2AllTrue)                \
   V(S1x4AnyTrue)                \
   V(S1x4AllTrue)                \
   V(S1x8AnyTrue)                \
@@ -885,7 +930,7 @@ class V8_EXPORT_PRIVATE IrOpcode {
 
   // Returns true if opcode for common operator.
   static bool IsCommonOpcode(Value value) {
-    return kStart <= value && value <= kDead;
+    return kStart <= value && value <= kStaticAssert;
   }
 
   // Returns true if opcode for control operator.
@@ -932,6 +977,18 @@ class V8_EXPORT_PRIVATE IrOpcode {
     return (kJSEqual <= value && value <= kJSGreaterThanOrEqual) ||
            (kNumberEqual <= value && value <= kStringLessThanOrEqual) ||
            (kWord32Equal <= value && value <= kFloat64LessThanOrEqual);
+  }
+
+  // Returns true if opcode for decompress operator.
+  static bool IsDecompressOpcode(Value value) {
+    return kChangeCompressedToTagged <= value &&
+           value <= kChangeCompressedSignedToTaggedSigned;
+  }
+
+  // Returns true if opcode for compress operator.
+  static bool IsCompressOpcode(Value value) {
+    return kChangeTaggedToCompressed <= value &&
+           value <= kChangeTaggedSignedToCompressedSigned;
   }
 
   static bool IsContextChainExtendingOpcode(Value value) {

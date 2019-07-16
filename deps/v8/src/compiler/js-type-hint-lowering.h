@@ -7,8 +7,8 @@
 
 #include "src/base/flags.h"
 #include "src/compiler/graph-reducer.h"
-#include "src/deoptimize-reason.h"
-#include "src/handles.h"
+#include "src/deoptimizer/deoptimize-reason.h"
+#include "src/handles/handles.h"
 
 namespace v8 {
 namespace internal {
@@ -153,7 +153,8 @@ class JSTypeHintLowering {
 
  private:
   friend class JSSpeculativeBinopBuilder;
-  Node* TryBuildSoftDeopt(FeedbackNexus& nexus, Node* effect, Node* control,
+  Node* TryBuildSoftDeopt(FeedbackNexus& nexus,  // NOLINT(runtime/references)
+                          Node* effect, Node* control,
                           DeoptimizeReason reson) const;
 
   JSGraph* jsgraph() const { return jsgraph_; }

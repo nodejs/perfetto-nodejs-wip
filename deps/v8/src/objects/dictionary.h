@@ -6,11 +6,11 @@
 #define V8_OBJECTS_DICTIONARY_H_
 
 #include "src/base/export-template.h"
-#include "src/globals.h"
+#include "src/common/globals.h"
 #include "src/objects/hash-table.h"
 #include "src/objects/property-array.h"
 #include "src/objects/smi.h"
-#include "src/roots.h"
+#include "src/roots/roots.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -32,7 +32,11 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
   using Key = typename Shape::Key;
   // Returns the value at entry.
   Object ValueAt(int entry) {
-    return this->get(DerivedHashTable::EntryToIndex(entry) + 1);
+    Isolate* isolate = GetIsolateForPtrCompr(*this);
+    return ValueAt(isolate, entry);
+  }
+  Object ValueAt(Isolate* isolate, int entry) {
+    return this->get(isolate, DerivedHashTable::EntryToIndex(entry) + 1);
   }
 
   // Set the value for entry.
@@ -99,16 +103,16 @@ class BaseDictionaryShape : public BaseShape<Key> {
   static inline PropertyDetails DetailsAt(Dictionary dict, int entry) {
     STATIC_ASSERT(Dictionary::kEntrySize == 3);
     DCHECK_GE(entry, 0);  // Not found is -1, which is not caught by get().
-    return PropertyDetails(Smi::cast(dict->get(
-        Dictionary::EntryToIndex(entry) + Dictionary::kEntryDetailsIndex)));
+    return PropertyDetails(Smi::cast(dict.get(Dictionary::EntryToIndex(entry) +
+                                              Dictionary::kEntryDetailsIndex)));
   }
 
   template <typename Dictionary>
   static inline void DetailsAtPut(Isolate* isolate, Dictionary dict, int entry,
                                   PropertyDetails value) {
     STATIC_ASSERT(Dictionary::kEntrySize == 3);
-    dict->set(Dictionary::EntryToIndex(entry) + Dictionary::kEntryDetailsIndex,
-              value.AsSmi());
+    dict.set(Dictionary::EntryToIndex(entry) + Dictionary::kEntryDetailsIndex,
+             value.AsSmi());
   }
 };
 
@@ -208,6 +212,8 @@ class V8_EXPORT_PRIVATE NameDictionary
   static const int kInitialCapacity = 2;
 
   inline Name NameAt(int entry);
+  inline Name NameAt(Isolate* isolate, int entry);
+
   inline void set_hash(int hash);
   inline int hash() const;
 
@@ -246,10 +252,13 @@ class V8_EXPORT_PRIVATE GlobalDictionary
   DECL_CAST(GlobalDictionary)
 
   inline Object ValueAt(int entry);
+  inline Object ValueAt(Isolate* isolate, int entry);
   inline PropertyCell CellAt(int entry);
+  inline PropertyCell CellAt(Isolate* isolate, int entry);
   inline void SetEntry(Isolate* isolate, int entry, Object key, Object value,
                        PropertyDetails details);
   inline Name NameAt(int entry);
+  inline Name NameAt(Isolate* isolate, int entry);
   inline void ValueAtPut(int entry, Object value);
 
   OBJECT_CONSTRUCTORS(
@@ -340,10 +349,6 @@ class NumberDictionary
 
   static const int kMaxNumberKeyIndex = kPrefixStartIndex;
   void UpdateMaxNumberKey(uint32_t key, Handle<JSObject> dictionary_holder);
-
-  // Returns true if the dictionary contains any elements that are non-writable,
-  // non-configurable, non-enumerable, or have getters/setters.
-  bool HasComplexElements();
 
   // Sorting support
   void CopyValuesTo(FixedArray elements);

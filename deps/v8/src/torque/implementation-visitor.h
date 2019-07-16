@@ -10,7 +10,7 @@
 #include "src/base/macros.h"
 #include "src/torque/ast.h"
 #include "src/torque/cfg.h"
-#include "src/torque/file-visitor.h"
+#include "src/torque/declarations.h"
 #include "src/torque/global-context.h"
 #include "src/torque/types.h"
 #include "src/torque/utils.h"
@@ -18,6 +18,10 @@
 namespace v8 {
 namespace internal {
 namespace torque {
+
+template <typename T>
+class Binding;
+struct LocalValue;
 
 // LocationReference is the representation of an l-value, so a value that might
 // allow for assignment. For uniformity, this class can also represent
@@ -27,10 +31,13 @@ namespace torque {
 class LocationReference {
  public:
   // An assignable stack range.
-  static LocationReference VariableAccess(VisitResult variable) {
+  static LocationReference VariableAccess(
+      VisitResult variable,
+      base::Optional<Binding<LocalValue>*> binding = base::nullopt) {
     DCHECK(variable.IsOnStack());
     LocationReference result;
     result.variable_ = std::move(variable);
+    result.binding_ = binding;
     return result;
   }
   // An unassignable value. {description} is only used for error messages.
@@ -146,6 +153,10 @@ class LocationReference {
     DCHECK(IsCallAccess());
     return *assign_function_;
   }
+  base::Optional<Binding<LocalValue>*> binding() const {
+    DCHECK(IsVariableAccess());
+    return binding_;
+  }
 
  private:
   base::Optional<VisitResult> variable_;
@@ -156,13 +167,14 @@ class LocationReference {
   base::Optional<std::string> assign_function_;
   VisitResultVector call_arguments_;
   base::Optional<std::string> index_field_;
+  base::Optional<Binding<LocalValue>*> binding_;
 
   LocationReference() = default;
 };
 
 struct InitializerResults {
   std::vector<Identifier*> names;
-  NameValueMap field_value_map;
+  std::map<std::string, VisitResult> field_value_map;
 };
 
 template <class T>
@@ -172,7 +184,15 @@ template <class T>
 class BindingsManager {
  public:
   base::Optional<Binding<T>*> TryLookup(const std::string& name) {
-    return current_bindings_[name];
+    if (name.length() >= 2 && name[0] == '_' && name[1] != '_') {
+      Error("Trying to reference '", name, "' which is marked as unused.")
+          .Throw();
+    }
+    auto binding = current_bindings_[name];
+    if (binding) {
+      (*binding)->SetUsed();
+    }
+    return binding;
   }
 
  private:
@@ -189,7 +209,9 @@ class Binding : public T {
       : T(std::forward<Args>(args)...),
         manager_(manager),
         name_(name),
-        previous_binding_(this) {
+        previous_binding_(this),
+        used_(false),
+        written_(false) {
     std::swap(previous_binding_, manager_->current_bindings_[name]);
   }
   template <class... Args>
@@ -197,16 +219,43 @@ class Binding : public T {
       : Binding(manager, name->value, std::forward<Args>(args)...) {
     declaration_position_ = name->pos;
   }
-  ~Binding() { manager_->current_bindings_[name_] = previous_binding_; }
+  ~Binding() {
+    if (!used_ && !SkipLintCheck()) {
+      Lint(BindingTypeString(), "'", name_,
+           "' is never used. Prefix with '_' if this is intentional.")
+          .Position(declaration_position_);
+    }
+
+    if (CheckWritten() && !written_ && !SkipLintCheck()) {
+      Lint(BindingTypeString(), "'", name_,
+           "' is never assigned to. Use 'const' instead of 'let'.")
+          .Position(declaration_position_);
+    }
+
+    manager_->current_bindings_[name_] = previous_binding_;
+  }
+
+  std::string BindingTypeString() const;
+  bool CheckWritten() const;
 
   const std::string& name() const { return name_; }
   SourcePosition declaration_position() const { return declaration_position_; }
 
+  bool Used() const { return used_; }
+  void SetUsed() { used_ = true; }
+
+  bool Written() const { return written_; }
+  void SetWritten() { written_ = true; }
+
  private:
+  bool SkipLintCheck() const { return name_.length() > 0 && name_[0] == '_'; }
+
   BindingsManager<T>* manager_;
   const std::string name_;
   base::Optional<Binding*> previous_binding_;
   SourcePosition declaration_position_ = CurrentSourcePosition::Get();
+  bool used_;
+  bool written_;
   DISALLOW_COPY_AND_ASSIGN(Binding);
 };
 
@@ -214,16 +263,20 @@ template <class T>
 class BlockBindings {
  public:
   explicit BlockBindings(BindingsManager<T>* manager) : manager_(manager) {}
-  void Add(std::string name, T value) {
+  void Add(std::string name, T value, bool mark_as_used = false) {
     ReportErrorIfAlreadyBound(name);
-    bindings_.push_back(base::make_unique<Binding<T>>(manager_, std::move(name),
-                                                      std::move(value)));
+    auto binding =
+        base::make_unique<Binding<T>>(manager_, name, std::move(value));
+    if (mark_as_used) binding->SetUsed();
+    bindings_.push_back(std::move(binding));
   }
 
-  void Add(const Identifier* name, T value) {
+  void Add(const Identifier* name, T value, bool mark_as_used = false) {
     ReportErrorIfAlreadyBound(name->value);
-    bindings_.push_back(
-        base::make_unique<Binding<T>>(manager_, name, std::move(value)));
+    auto binding =
+        base::make_unique<Binding<T>>(manager_, name, std::move(value));
+    if (mark_as_used) binding->SetUsed();
+    bindings_.push_back(std::move(binding));
   }
 
   std::vector<Binding<T>*> bindings() const {
@@ -265,6 +318,25 @@ struct LocalLabel {
       : block(block), parameter_types(std::move(parameter_types)) {}
 };
 
+template <>
+inline std::string Binding<LocalValue>::BindingTypeString() const {
+  return "Variable ";
+}
+template <>
+inline bool Binding<LocalValue>::CheckWritten() const {
+  // Do the check only for non-const variables and non struct types.
+  auto binding = *manager_->current_bindings_[name_];
+  return !binding->is_const && !binding->value.type()->IsStructType();
+}
+template <>
+inline std::string Binding<LocalLabel>::BindingTypeString() const {
+  return "Label ";
+}
+template <>
+inline bool Binding<LocalLabel>::CheckWritten() const {
+  return false;
+}
+
 struct Arguments {
   VisitResultVector parameters;
   std::vector<Binding<LocalLabel>*> labels;
@@ -274,11 +346,17 @@ struct Arguments {
 bool IsCompatibleSignature(const Signature& sig, const TypeVector& types,
                            size_t label_count);
 
-class ImplementationVisitor : public FileVisitor {
+class ImplementationVisitor {
  public:
-  void GenerateBuiltinDefinitions(std::string& file_name);
-  void GenerateClassDefinitions(std::string& file_name);
-  void GeneratePrintDefinitions(std::string& file_name);
+  void GenerateBuiltinDefinitions(const std::string& output_directory);
+  void GenerateClassFieldOffsets(const std::string& output_directory);
+  void GeneratePrintDefinitions(const std::string& output_directory);
+  void GenerateClassDefinitions(const std::string& output_directory);
+  void GenerateInstanceTypes(const std::string& output_directory);
+  void GenerateClassVerifiers(const std::string& output_directory);
+  void GenerateExportedMacrosAssembler(const std::string& output_directory);
+  void GenerateCSATypes(const std::string& output_directory);
+  void GenerateCppForInternalClasses(const std::string& output_directory);
 
   VisitResult Visit(Expression* expr);
   const Type* Visit(Statement* stmt);
@@ -326,7 +404,8 @@ class ImplementationVisitor : public FileVisitor {
                           const std::vector<VisitResult>& arguments,
                           const std::vector<Block*> label_blocks);
   void VisitMacroCommon(Macro* macro);
-  void Visit(Macro* macro);
+  void Visit(ExternMacro* macro) {}
+  void Visit(TorqueMacro* macro);
   void Visit(Method* macro);
   void Visit(Builtin* builtin);
   void Visit(NamespaceConstant* decl);
@@ -361,22 +440,23 @@ class ImplementationVisitor : public FileVisitor {
   const Type* Visit(VarDeclarationStatement* stmt);
   const Type* Visit(VarDeclarationStatement* stmt,
                     BlockBindings<LocalValue>* block_bindings);
-  const Type* Visit(ForOfLoopStatement* stmt);
   const Type* Visit(BlockStatement* block);
   const Type* Visit(ExpressionStatement* stmt);
   const Type* Visit(DebugStatement* stmt);
   const Type* Visit(AssertStatement* stmt);
 
-  void BeginNamespaceFile(Namespace* nspace);
-  void EndNamespaceFile(Namespace* nspace);
+  void BeginCSAFiles();
+  void EndCSAFiles();
 
-  void GenerateImplementation(const std::string& dir, Namespace* nspace);
+  void GenerateImplementation(const std::string& dir);
 
   DECLARE_CONTEXTUAL_VARIABLE(ValueBindingsManager,
                               BindingsManager<LocalValue>);
   DECLARE_CONTEXTUAL_VARIABLE(LabelBindingsManager,
                               BindingsManager<LocalLabel>);
   DECLARE_CONTEXTUAL_VARIABLE(CurrentCallable, Callable*);
+  DECLARE_CONTEXTUAL_VARIABLE(CurrentFileStreams,
+                              GlobalContext::PerFileStreams*);
   DECLARE_CONTEXTUAL_VARIABLE(CurrentReturnValue, base::Optional<VisitResult>);
 
   // A BindingsManagersScope has to be active for local bindings to be created.
@@ -386,6 +466,8 @@ class ImplementationVisitor : public FileVisitor {
     ValueBindingsManager::Scope value_bindings_manager;
     LabelBindingsManager::Scope label_bindings_manager;
   };
+
+  void SetDryRun(bool is_dry_run) { is_dry_run_ = is_dry_run; }
 
  private:
   base::Optional<Block*> GetCatchBlock();
@@ -457,9 +539,9 @@ class ImplementationVisitor : public FileVisitor {
   class BreakContinueActivator {
    public:
     BreakContinueActivator(Block* break_block, Block* continue_block)
-        : break_binding_{&LabelBindingsManager::Get(), "_break",
+        : break_binding_{&LabelBindingsManager::Get(), kBreakLabelName,
                          LocalLabel{break_block}},
-          continue_binding_{&LabelBindingsManager::Get(), "_continue",
+          continue_binding_{&LabelBindingsManager::Get(), kContinueLabelName,
                             LocalLabel{continue_block}} {}
 
    private:
@@ -526,7 +608,7 @@ class ImplementationVisitor : public FileVisitor {
   void GenerateBranch(const VisitResult& condition, Block* true_block,
                       Block* false_block);
 
-  typedef std::function<VisitResult()> VisitResultGenerator;
+  using VisitResultGenerator = std::function<VisitResult()>;
   void GenerateExpressionBranch(VisitResultGenerator, Block* true_block,
                                 Block* false_block);
   void GenerateExpressionBranch(Expression* expression, Block* true_block,
@@ -535,11 +617,10 @@ class ImplementationVisitor : public FileVisitor {
   void GenerateMacroFunctionDeclaration(std::ostream& o,
                                         const std::string& macro_prefix,
                                         Macro* macro);
-  void GenerateFunctionDeclaration(std::ostream& o,
-                                   const std::string& macro_prefix,
-                                   const std::string& name,
-                                   const Signature& signature,
-                                   const NameVector& parameter_names);
+  std::vector<std::string> GenerateFunctionDeclaration(
+      std::ostream& o, const std::string& macro_prefix, const std::string& name,
+      const Signature& signature, const NameVector& parameter_names,
+      bool pass_code_assembler_state = true);
 
   VisitResult GenerateImplicitConvert(const Type* destination_type,
                                       VisitResult source);
@@ -548,7 +629,7 @@ class ImplementationVisitor : public FileVisitor {
                                base::Optional<StackRange> arguments = {});
 
   std::vector<Binding<LocalLabel>*> LabelsFromIdentifiers(
-      const std::vector<std::string>& names);
+      const std::vector<Identifier*>& names);
 
   StackRange LowerParameter(const Type* type, const std::string& parameter_name,
                             Stack<std::string>* lowered_parameters);
@@ -562,20 +643,16 @@ class ImplementationVisitor : public FileVisitor {
   std::string ExternalParameterName(const std::string& name);
 
   std::ostream& source_out() {
-    Callable* callable = CurrentCallable::Get();
-    if (!callable || callable->ShouldGenerateExternalCode()) {
-      return CurrentNamespace()->source_stream();
-    } else {
-      return null_stream_;
+    if (auto* streams = CurrentFileStreams::Get()) {
+      return streams->csa_ccfile;
     }
+    return null_stream_;
   }
   std::ostream& header_out() {
-    Callable* callable = CurrentCallable::Get();
-    if (!callable || callable->ShouldGenerateExternalCode()) {
-      return CurrentNamespace()->header_stream();
-    } else {
-      return null_stream_;
+    if (auto* streams = CurrentFileStreams::Get()) {
+      return streams->csa_headerfile;
     }
+    return null_stream_;
   }
   CfgAssembler& assembler() { return *assembler_; }
 
@@ -592,9 +669,17 @@ class ImplementationVisitor : public FileVisitor {
     return return_value;
   }
 
+  void WriteFile(const std::string& file, const std::string& content) {
+    if (is_dry_run_) return;
+    ReplaceFileContentsIfDifferent(file, content);
+  }
+
   base::Optional<CfgAssembler> assembler_;
   NullOStream null_stream_;
+  bool is_dry_run_;
 };
+
+void ReportAllUnusedMacros();
 
 }  // namespace torque
 }  // namespace internal

@@ -33,8 +33,8 @@ namespace object {
   }
 
   transitioning javascript builtin
-  ObjectFromEntries(implicit context: Context)(receiver: Object, ...arguments):
-      Object {
+  ObjectFromEntries(js-implicit context: Context, receiver: Object)(
+      ...arguments): Object {
     const iterable: Object = arguments[0];
     try {
       if (IsNullOrUndefined(iterable)) goto Throw;
@@ -42,14 +42,13 @@ namespace object {
     }
     label IfSlow {
       const result: JSObject = NewJSObject();
-      const fastIteratorResultMap: Map =
-          Cast<Map>(LoadNativeContext(context)[ITERATOR_RESULT_MAP_INDEX])
-          otherwise unreachable;
+      const fastIteratorResultMap: Map = GetIteratorResultMap();
       let i: iterator::IteratorRecord = iterator::GetIterator(iterable);
       try {
         assert(!IsNullOrUndefined(i.object));
         while (true) {
-          const step: Object = iterator::IteratorStep(i, fastIteratorResultMap)
+          const step: JSReceiver =
+              iterator::IteratorStep(i, fastIteratorResultMap)
               otherwise return result;
           const iteratorValue: Object =
               iterator::IteratorValue(step, fastIteratorResultMap);

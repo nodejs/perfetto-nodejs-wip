@@ -5,16 +5,22 @@
 #ifndef V8_OBJECTS_BIGINT_H_
 #define V8_OBJECTS_BIGINT_H_
 
-#include "src/globals.h"
-#include "src/objects.h"
+#include "src/common/globals.h"
 #include "src/objects/heap-object.h"
-#include "src/utils.h"
+#include "src/objects/objects.h"
+#include "src/utils/utils.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
 namespace v8 {
 namespace internal {
+
+void MutableBigInt_AbsoluteAddAndCanonicalize(Address result_addr,
+                                              Address x_addr, Address y_addr);
+int32_t MutableBigInt_AbsoluteCompare(Address x_addr, Address y_addr);
+void MutableBigInt_AbsoluteSubAndCanonicalize(Address result_addr,
+                                              Address x_addr, Address y_addr);
 
 class BigInt;
 class ValueDeserializer;
@@ -66,6 +72,10 @@ class BigIntBase : public HeapObject {
   DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, BIGINT_FIELDS)
 #undef BIGINT_FIELDS
 
+  static constexpr bool HasOptionalPadding() {
+    return FIELD_SIZE(kOptionalPaddingOffset) > 0;
+  }
+
  private:
   friend class ::v8::internal::BigInt;  // MSVC wants full namespace.
   friend class MutableBigInt;
@@ -87,7 +97,7 @@ class BigIntBase : public HeapObject {
 
   inline digit_t digit(int n) const {
     SLOW_DCHECK(0 <= n && n < length());
-    return READ_UINTPTR_FIELD(*this, kDigitsOffset + n * kDigitSize);
+    return ReadField<digit_t>(kDigitsOffset + n * kDigitSize);
   }
 
   bool is_zero() const { return length() == 0; }

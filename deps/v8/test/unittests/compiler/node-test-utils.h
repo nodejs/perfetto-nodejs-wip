@@ -5,11 +5,11 @@
 #ifndef V8_UNITTESTS_COMPILER_NODE_TEST_UTILS_H_
 #define V8_UNITTESTS_COMPILER_NODE_TEST_UTILS_H_
 
+#include "src/codegen/machine-type.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/simplified-operator.h"
-#include "src/machine-type.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace v8 {
@@ -333,6 +333,11 @@ Matcher<Node*> IsUnalignedLoad(const Matcher<LoadRepresentation>& rep_matcher,
                                const Matcher<Node*>& index_matcher,
                                const Matcher<Node*>& effect_matcher,
                                const Matcher<Node*>& control_matcher);
+Matcher<Node*> IsLoadFromObject(const Matcher<LoadRepresentation>& rep_matcher,
+                                const Matcher<Node*>& base_matcher,
+                                const Matcher<Node*>& index_matcher,
+                                const Matcher<Node*>& effect_matcher,
+                                const Matcher<Node*>& control_matcher);
 Matcher<Node*> IsStore(const Matcher<StoreRepresentation>& rep_matcher,
                        const Matcher<Node*>& base_matcher,
                        const Matcher<Node*>& index_matcher,

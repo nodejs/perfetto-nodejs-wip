@@ -4,12 +4,12 @@
 
 #include "src/inspector/v8-debugger-script.h"
 
+#include "src/base/memory.h"
 #include "src/inspector/inspected-context.h"
 #include "src/inspector/string-util.h"
 #include "src/inspector/v8-debugger-agent-impl.h"
 #include "src/inspector/v8-inspector-impl.h"
 #include "src/inspector/wasm-translation.h"
-#include "src/v8memory.h"
 
 namespace v8_inspector {
 
@@ -44,7 +44,7 @@ String16 calculateHash(v8::Isolate* isolate, v8::Local<v8::String> source) {
   size_t sizeInBytes = sizeof(UChar) * written;
   data = reinterpret_cast<const uint32_t*>(buffer.get());
   for (size_t i = 0; i < sizeInBytes / 4; ++i) {
-    uint32_t d = v8::internal::ReadUnalignedUInt32(
+    uint32_t d = v8::base::ReadUnalignedValue<uint32_t>(
         reinterpret_cast<v8::internal::Address>(data + i));
 #if V8_TARGET_LITTLE_ENDIAN
     uint32_t v = d;
@@ -235,6 +235,11 @@ class ActualScript : public V8DebuggerScript {
                                    id);
   }
 
+  bool setBreakpointOnRun(int* id) const override {
+    v8::HandleScope scope(m_isolate);
+    return script()->SetBreakpointOnScriptEntry(id);
+  }
+
   const String16& hash() const override {
     if (!m_hash.isEmpty()) return m_hash;
     v8::HandleScope scope(m_isolate);
@@ -423,6 +428,8 @@ class WasmVirtualScript : public V8DebuggerScript {
                                           v8ScriptId, scriptId());
     return true;
   }
+
+  bool setBreakpointOnRun(int*) const override { return false; }
 
   const String16& hash() const override {
     if (m_hash.isEmpty()) {

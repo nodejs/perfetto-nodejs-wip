@@ -4,12 +4,12 @@
 
 #include "src/compiler/escape-analysis.h"
 
-#include "src/bootstrapper.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/operator-properties.h"
 #include "src/compiler/simplified-operator.h"
-#include "src/handles-inl.h"
+#include "src/handles/handles-inl.h"
+#include "src/init/bootstrapper.h"
 #include "src/objects/map-inl.h"
 
 #ifdef DEBUG
@@ -441,10 +441,12 @@ VariableTracker::State VariableTracker::MergeInputs(Node* effect_phi) {
         // [old_value] cannot originate from the inputs. Thus [old_value]
         // must have been created by a previous reduction of this [effect_phi].
         for (int i = 0; i < arity; ++i) {
-          NodeProperties::ReplaceValueInput(
-              old_value, buffer_[i] ? buffer_[i] : graph_->Dead(), i);
-          // This change cannot affect the rest of the reducer, so there is no
-          // need to trigger additional revisitations.
+          Node* old_input = NodeProperties::GetValueInput(old_value, i);
+          Node* new_input = buffer_[i] ? buffer_[i] : graph_->Dead();
+          if (old_input != new_input) {
+            NodeProperties::ReplaceValueInput(old_value, new_input, i);
+            reducer_->Revisit(old_value);
+          }
         }
         result.Set(var, old_value);
       } else {
@@ -622,6 +624,7 @@ void ReduceNode(const Operator* op, EscapeAnalysisTracker::Scope* current,
           OffsetOfElementsAccess(op, index).To(&offset) &&
           vobject->FieldAt(offset).To(&var) && current->Get(var).To(&value)) {
         current->SetReplacement(value);
+        break;
       } else if (vobject && !vobject->HasEscaped()) {
         // Compute the known length (aka the number of elements) of {object}
         // based on the virtual object information.
@@ -700,21 +703,19 @@ void ReduceNode(const Operator* op, EscapeAnalysisTracker::Scope* current,
       } else if (right_object && !right_object->HasEscaped()) {
         replacement = jsgraph->FalseConstant();
       }
-      if (replacement) {
-        // TODO(tebbi) This is a workaround for uninhabited types. If we
-        // replaced a value of uninhabited type with a constant, we would
-        // widen the type of the node. This could produce inconsistent
-        // types (which might confuse representation selection). We get
-        // around this by refusing to constant-fold and escape-analyze
-        // if the type is not inhabited.
-        if (!NodeProperties::GetType(left).IsNone() &&
-            !NodeProperties::GetType(right).IsNone()) {
-          current->SetReplacement(replacement);
-        } else {
-          current->SetEscaped(left);
-          current->SetEscaped(right);
-        }
+      // TODO(tebbi) This is a workaround for uninhabited types. If we
+      // replaced a value of uninhabited type with a constant, we would
+      // widen the type of the node. This could produce inconsistent
+      // types (which might confuse representation selection). We get
+      // around this by refusing to constant-fold and escape-analyze
+      // if the type is not inhabited.
+      if (replacement && !NodeProperties::GetType(left).IsNone() &&
+          !NodeProperties::GetType(right).IsNone()) {
+        current->SetReplacement(replacement);
+        break;
       }
+      current->SetEscaped(left);
+      current->SetEscaped(right);
       break;
     }
     case IrOpcode::kCheckMaps: {

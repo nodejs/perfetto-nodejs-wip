@@ -73,9 +73,8 @@ class JSInliningHeuristic final : public AdvancedReducer {
   void CreateOrReuseDispatch(Node* node, Node* callee,
                              Candidate const& candidate, Node** if_successes,
                              Node** calls, Node** inputs, int input_count);
-  bool TryReuseDispatch(Node* node, Node* callee, Candidate const& candidate,
-                        Node** if_successes, Node** calls, Node** inputs,
-                        int input_count);
+  bool TryReuseDispatch(Node* node, Node* callee, Node** if_successes,
+                        Node** calls, Node** inputs, int input_count);
   enum StateCloneMode { kCloneState, kChangeInPlace };
   Node* DuplicateFrameStateAndRename(Node* frame_state, Node* from, Node* to,
                                      StateCloneMode mode);
@@ -98,7 +97,7 @@ class JSInliningHeuristic final : public AdvancedReducer {
   SourcePositionTable* source_positions_;
   JSGraph* const jsgraph_;
   JSHeapBroker* const broker_;
-  int cumulative_count_ = 0;
+  int total_inlined_bytecode_size_ = 0;
 };
 
 }  // namespace compiler

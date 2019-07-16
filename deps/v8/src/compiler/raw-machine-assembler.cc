@@ -69,9 +69,12 @@ Node* RawMachineAssembler::RelocatableIntPtrConstant(intptr_t value,
              : RelocatableInt32Constant(static_cast<int>(value), rmode);
 }
 
-Node* RawMachineAssembler::OptimizedAllocate(Node* size,
-                                             AllocationType allocation) {
-  return AddNode(simplified()->AllocateRaw(Type::Any(), allocation), size);
+Node* RawMachineAssembler::OptimizedAllocate(
+    Node* size, AllocationType allocation,
+    AllowLargeObjects allow_large_objects) {
+  return AddNode(
+      simplified()->AllocateRaw(Type::Any(), allocation, allow_large_objects),
+      size);
 }
 
 Schedule* RawMachineAssembler::Export() {
@@ -553,8 +556,8 @@ void RawMachineAssembler::PopAndReturn(Node* pop, Node* v1, Node* v2, Node* v3,
   current_block_ = nullptr;
 }
 
-void RawMachineAssembler::DebugAbort(Node* message) {
-  AddNode(machine()->DebugAbort(), message);
+void RawMachineAssembler::AbortCSAAssert(Node* message) {
+  AddNode(machine()->AbortCSAAssert(), message);
 }
 
 void RawMachineAssembler::DebugBreak() { AddNode(machine()->DebugBreak()); }
@@ -570,6 +573,10 @@ void RawMachineAssembler::Comment(const std::string& msg) {
   char* zone_buffer = zone()->NewArray<char>(length);
   MemCopy(zone_buffer, msg.c_str(), length);
   AddNode(machine()->Comment(zone_buffer));
+}
+
+void RawMachineAssembler::StaticAssert(Node* value) {
+  AddNode(common()->StaticAssert(), value);
 }
 
 Node* RawMachineAssembler::CallN(CallDescriptor* call_descriptor,

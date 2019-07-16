@@ -5,14 +5,14 @@
 #ifndef V8_SNAPSHOT_SERIALIZER_COMMON_H_
 #define V8_SNAPSHOT_SERIALIZER_COMMON_H_
 
-#include "src/address-map.h"
 #include "src/base/bits.h"
-#include "src/external-reference-table.h"
-#include "src/globals.h"
-#include "src/msan.h"
+#include "src/base/memory.h"
+#include "src/codegen/external-reference-table.h"
+#include "src/common/globals.h"
+#include "src/objects/visitors.h"
+#include "src/sanitizer/msan.h"
 #include "src/snapshot/references.h"
-#include "src/v8memory.h"
-#include "src/visitors.h"
+#include "src/utils/address-map.h"
 
 namespace v8 {
 namespace internal {
@@ -102,19 +102,6 @@ class SerializerDeserializer : public RootVisitor {
  public:
   static void Iterate(Isolate* isolate, RootVisitor* visitor);
 
-  // No reservation for large object space necessary.
-  // We also handle map space differenly.
-  STATIC_ASSERT(MAP_SPACE == CODE_SPACE + 1);
-
-  // We do not support young generation large objects and large code objects.
-  STATIC_ASSERT(LAST_SPACE == NEW_LO_SPACE);
-  STATIC_ASSERT(LAST_SPACE - 2 == LO_SPACE);
-  static const int kNumberOfPreallocatedSpaces = CODE_SPACE + 1;
-
-  // The number of spaces supported by the serializer. Spaces after LO_SPACE
-  // (NEW_LO_SPACE and CODE_LO_SPACE) are not supported.
-  static const int kNumberOfSpaces = LO_SPACE + 1;
-
  protected:
   static bool CanBeDeferred(HeapObject o);
 
@@ -122,6 +109,12 @@ class SerializerDeserializer : public RootVisitor {
       const std::vector<AccessorInfo>& accessor_infos);
   void RestoreExternalReferenceRedirectors(
       const std::vector<CallHandlerInfo>& call_handler_infos);
+
+  static const int kNumberOfPreallocatedSpaces =
+      static_cast<int>(SnapshotSpace::kNumberOfPreallocatedSpaces);
+
+  static const int kNumberOfSpaces =
+      static_cast<int>(SnapshotSpace::kNumberOfSpaces);
 
 // clang-format off
 #define UNUSED_SERIALIZER_BYTE_CODES(V)                           \
@@ -259,7 +252,7 @@ class SerializerDeserializer : public RootVisitor {
   //
   // Some other constants.
   //
-  static const int kAnyOldSpace = -1;
+  static const SnapshotSpace kAnyOldSpace = SnapshotSpace::kNumberOfSpaces;
 
   // Sentinel after a new object to indicate that double alignment is needed.
   static const int kDoubleAlignmentSentinel = 0;
@@ -344,12 +337,13 @@ class SerializedData {
 
  protected:
   void SetHeaderValue(uint32_t offset, uint32_t value) {
-    WriteLittleEndianValue(reinterpret_cast<Address>(data_) + offset, value);
+    base::WriteLittleEndianValue(reinterpret_cast<Address>(data_) + offset,
+                                 value);
   }
 
   uint32_t GetHeaderValue(uint32_t offset) const {
-    return ReadLittleEndianValue<uint32_t>(reinterpret_cast<Address>(data_) +
-                                           offset);
+    return base::ReadLittleEndianValue<uint32_t>(
+        reinterpret_cast<Address>(data_) + offset);
   }
 
   void AllocateData(uint32_t size);
@@ -370,13 +364,19 @@ class Checksum {
 #ifdef MEMORY_SANITIZER
     // Computing the checksum includes padding bytes for objects like strings.
     // Mark every object as initialized in the code serializer.
-    MSAN_MEMORY_IS_INITIALIZED(payload.start(), payload.length());
+    MSAN_MEMORY_IS_INITIALIZED(payload.begin(), payload.length());
 #endif  // MEMORY_SANITIZER
     // Fletcher's checksum. Modified to reduce 64-bit sums to 32-bit.
     uintptr_t a = 1;
     uintptr_t b = 0;
-    const uintptr_t* cur = reinterpret_cast<const uintptr_t*>(payload.start());
+    // TODO(jgruber, v8:9171): The following DCHECK should ideally hold since we
+    // access payload through an uintptr_t pointer later on; and some
+    // architectures, e.g. arm, may generate instructions that expect correct
+    // alignment. However, we do not control alignment for external snapshots.
+    // DCHECK(IsAligned(reinterpret_cast<intptr_t>(payload.begin()),
+    //                  kIntptrSize));
     DCHECK(IsAligned(payload.length(), kIntptrSize));
+    const uintptr_t* cur = reinterpret_cast<const uintptr_t*>(payload.begin());
     const uintptr_t* end = cur + payload.length() / kIntptrSize;
     while (cur < end) {
       // Unsigned overflow expected and intended.

@@ -7,9 +7,9 @@
 
 // Clients of this interface shouldn't depend on lots of compiler internals.
 // Do not include anything from src/compiler here!
-#include "src/globals.h"
-#include "src/objects.h"
+#include "src/common/globals.h"
 #include "src/objects/code.h"
+#include "src/objects/objects.h"
 
 namespace v8 {
 namespace internal {
@@ -41,9 +41,8 @@ class SourcePositionTable;
 class Pipeline : public AllStatic {
  public:
   // Returns a new compilation job for the given JavaScript function.
-  static OptimizedCompilationJob* NewCompilationJob(Isolate* isolate,
-                                                    Handle<JSFunction> function,
-                                                    bool has_script);
+  static std::unique_ptr<OptimizedCompilationJob> NewCompilationJob(
+      Isolate* isolate, Handle<JSFunction> function, bool has_script);
 
   // Run the pipeline for the WebAssembly compilation info.
   static void GenerateCodeForWasmFunction(
@@ -60,11 +59,11 @@ class Pipeline : public AllStatic {
       const char* debug_name, const AssemblerOptions& assembler_options,
       SourcePositionTable* source_positions = nullptr);
 
-  // Run the pipeline on a machine graph and generate code.
-  static MaybeHandle<Code> GenerateCodeForWasmHeapStub(
-      Isolate* isolate, CallDescriptor* call_descriptor, Graph* graph,
-      Code::Kind kind, const char* debug_name,
-      const AssemblerOptions& assembler_options,
+  // Returns a new compilation job for a wasm heap stub.
+  static std::unique_ptr<OptimizedCompilationJob> NewWasmHeapStubCompilationJob(
+      Isolate* isolate, CallDescriptor* call_descriptor,
+      std::unique_ptr<Zone> zone, Graph* graph, Code::Kind kind,
+      std::unique_ptr<char[]> debug_name, const AssemblerOptions& options,
       SourcePositionTable* source_positions = nullptr);
 
   // Run the pipeline on a machine graph and generate code.
@@ -79,12 +78,12 @@ class Pipeline : public AllStatic {
   // The following methods are for testing purposes only. Avoid production use.
   // ---------------------------------------------------------------------------
 
-  // Run the pipeline on JavaScript bytecode and generate code.
-  // If requested, hands out the heap broker, which is allocated
-  // in {info}'s zone.
+  // Run the pipeline on JavaScript bytecode and generate code.  If requested,
+  // hands out the heap broker on success, transferring its ownership to the
+  // caller.
   V8_EXPORT_PRIVATE static MaybeHandle<Code> GenerateCodeForTesting(
       OptimizedCompilationInfo* info, Isolate* isolate,
-      JSHeapBroker** out_broker = nullptr);
+      std::unique_ptr<JSHeapBroker>* out_broker = nullptr);
 
   // Run the pipeline on a machine graph and generate code. If {schedule} is
   // {nullptr}, then compute a new schedule for code generation.

@@ -12,10 +12,10 @@
 #include <set>
 #include <string>
 
+#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
-#include "src/isolate.h"
-#include "src/objects.h"
 #include "src/objects/managed.h"
+#include "src/objects/objects.h"
 #include "unicode/uversion.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -30,12 +30,11 @@ namespace internal {
 
 class JSRelativeTimeFormat : public JSObject {
  public:
-  // Initializes relative time format object with properties derived from input
+  // Creates relative time format object with properties derived from input
   // locales and options.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSRelativeTimeFormat> Initialize(
-      Isolate* isolate,
-      Handle<JSRelativeTimeFormat> relative_time_format_holder,
-      Handle<Object> locales, Handle<Object> options);
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSRelativeTimeFormat> New(
+      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Handle<Object> options);
 
   V8_WARN_UNUSED_RESULT static Handle<JSObject> ResolvedOptions(
       Isolate* isolate, Handle<JSRelativeTimeFormat> format_holder);
@@ -109,16 +108,8 @@ class JSRelativeTimeFormat : public JSObject {
   DECL_VERIFIER(JSRelativeTimeFormat)
 
   // Layout description.
-#define JS_RELATIVE_TIME_FORMAT_FIELDS(V)     \
-  V(kLocaleOffset, kTaggedSize)               \
-  V(kICUFormatterOffset, kTaggedSize)         \
-  V(kFlagsOffset, kTaggedSize)                \
-  /* Header size. */                          \
-  V(kSize, 0)
-
   DEFINE_FIELD_OFFSET_CONSTANTS(JSObject::kHeaderSize,
-                                JS_RELATIVE_TIME_FORMAT_FIELDS)
-#undef JS_RELATIVE_TIME_FORMAT_FIELDS
+                                TORQUE_GENERATED_JSRELATIVE_TIME_FORMAT_FIELDS)
 
  private:
   static Style getStyle(const char* str);

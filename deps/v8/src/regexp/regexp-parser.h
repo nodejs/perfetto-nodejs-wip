@@ -5,8 +5,8 @@
 #ifndef V8_REGEXP_REGEXP_PARSER_H_
 #define V8_REGEXP_REGEXP_PARSER_H_
 
-#include "src/objects.h"
 #include "src/objects/js-regexp.h"
+#include "src/objects/objects.h"
 #include "src/regexp/regexp-ast.h"
 #include "src/zone/zone.h"
 
@@ -326,11 +326,19 @@ class V8_EXPORT_PRIVATE RegExpParser {
   FlatStringReader* in() { return in_; }
   void ScanForCaptures();
 
+  struct RegExpCaptureNameLess {
+    bool operator()(const RegExpCapture* lhs, const RegExpCapture* rhs) const {
+      DCHECK_NOT_NULL(lhs);
+      DCHECK_NOT_NULL(rhs);
+      return *lhs->name() < *rhs->name();
+    }
+  };
+
   Isolate* isolate_;
   Zone* zone_;
   Handle<String>* error_;
   ZoneList<RegExpCapture*>* captures_;
-  ZoneList<RegExpCapture*>* named_captures_;
+  ZoneSet<RegExpCapture*, RegExpCaptureNameLess>* named_captures_;
   ZoneList<RegExpBackReference*>* named_back_references_;
   FlatStringReader* in_;
   uc32 current_;
