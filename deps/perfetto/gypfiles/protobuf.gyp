@@ -12,12 +12,15 @@
         "host"
       ],
       "include_dirs": [
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
         "<(root_relative_to_gypfile)/../protobuf/src"
       ],
       "defines": [
         "HAVE_PTHREAD=1",
         "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
       ],
       "sources": [
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/arena.cc",
@@ -43,6 +46,31 @@
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/strutil.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/stubs/time.cc",
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/wire_format_lite.cc"
+      ],
+      "conditions": [
+        [
+          "OS==\"mac\"",
+          {
+            "target_conditions": [
+              [
+                "_toolset==\"target\"",
+                {
+                  "include_dirs": [
+                    "<(SHARED_INTERMEDIATE_DIR)/gen/protos/"
+                  ]
+                }
+              ],
+              [
+                "_toolset==\"host\"",
+                {
+                  "include_dirs": [
+                    "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/protos/"
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
       ]
     },
     {
@@ -113,12 +141,16 @@
         "host"
       ],
       "include_dirs": [
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/protos/",
         "<(root_relative_to_gypfile)/../protobuf/src"
       ],
       "defines": [
         "HAVE_PTHREAD=1",
         "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
       ],
       "sources": [
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/compiler/code_generator.cc",
@@ -234,12 +266,16 @@
         "host"
       ],
       "include_dirs": [
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/protos/",
         "<(root_relative_to_gypfile)/../protobuf/src"
       ],
       "defines": [
         "HAVE_PTHREAD=1",
         "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
       ],
       "sources": [
         "<(root_relative_to_gypfile)/../protobuf/src/google/protobuf/any.cc",
