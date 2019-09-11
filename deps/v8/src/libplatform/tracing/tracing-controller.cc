@@ -218,20 +218,21 @@ uint64_t TracingController::AddTraceEventWithTimestamp(
     });
 #endif  // V8_USE_PERFETTO
 
-  uint64_t handle = 0;
-  if (recording_.load(std::memory_order_acquire)) {
-    TraceObject* trace_object = trace_buffer_->AddTraceEvent(&handle);
-    if (trace_object) {
-      {
-        base::MutexGuard lock(mutex_.get());
-        trace_object->Initialize(phase, category_enabled_flag, name, scope, id,
-                                 bind_id, num_args, arg_names, arg_types,
-                                 arg_values, arg_convertables, flags, timestamp,
-                                 cpu_now_us);
-      }
-    }
-  }
-  return handle;
+  // uint64_t handle = 0;
+  // if (recording_.load(std::memory_order_acquire)) {
+  //   TraceObject* trace_object = trace_buffer_->AddTraceEvent(&handle);
+  //   if (trace_object) {
+  //     {
+  //       base::MutexGuard lock(mutex_.get());
+  //       trace_object->Initialize(phase, category_enabled_flag, name, scope, id,
+  //                                bind_id, num_args, arg_names, arg_types,
+  //                                arg_values, arg_convertables, flags, timestamp,
+  //                                cpu_now_us);
+  //     }
+  //   }
+  // }
+  // return handle;
+  return 0;
 }
 
 void TracingController::UpdateTraceEventDuration(
@@ -253,9 +254,9 @@ void TracingController::UpdateTraceEventDuration(
   });
 #endif  // V8_USE_PERFETTO
 
-  TraceObject* trace_object = trace_buffer_->GetEventByHandle(handle);
-  if (!trace_object) return;
-  trace_object->UpdateDuration(now_us, cpu_now_us);
+  // TraceObject* trace_object = trace_buffer_->GetEventByHandle(handle);
+  // if (!trace_object) return;
+  // trace_object->UpdateDuration(now_us, cpu_now_us);
 }
 
 const char* TracingController::GetCategoryGroupName(
@@ -276,26 +277,26 @@ const char* TracingController::GetCategoryGroupName(
 
 void TracingController::StartTracing(TraceConfig* trace_config) {
 #ifdef V8_USE_PERFETTO
-  DCHECK_NOT_NULL(output_stream_);
-  DCHECK(output_stream_->good());
-  json_listener_ = base::make_unique<JSONTraceEventListener>(output_stream_);
+  // DCHECK_NOT_NULL(output_stream_);
+  // DCHECK(output_stream_->good());
+  // json_listener_ = base::make_unique<JSONTraceEventListener>(output_stream_);
 
   // TODO(petermarshall): Set other the params for the config.
-  ::perfetto::TraceConfig perfetto_trace_config;
-  perfetto_trace_config.add_buffers()->set_size_kb(4096);
-  auto* ds_config = perfetto_trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("v8.trace_events");
+  // ::perfetto::TraceConfig perfetto_trace_config;
+  // perfetto_trace_config.add_buffers()->set_size_kb(4096);
+  // auto* ds_config = perfetto_trace_config.add_data_sources()->mutable_config();
+  // ds_config->set_name("v8.trace_events");
 
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("v8.trace_events");
   V8DataSource::Register(dsd);
 
-  tracing_session_ =
-      perfetto::Tracing::NewTrace(perfetto::BackendType::kUnspecifiedBackend);
-  tracing_session_->Setup(perfetto_trace_config);
-  // TODO(petermarshall): Switch to StartBlocking when available.
-  tracing_session_->Start();
-  V8DataSource::started_.Wait();
+  // tracing_session_ =
+  //     perfetto::Tracing::NewTrace(perfetto::BackendType::kUnspecifiedBackend);
+  // tracing_session_->Setup(perfetto_trace_config);
+  // // TODO(petermarshall): Switch to StartBlocking when available.
+  // tracing_session_->Start();
+  // V8DataSource::started_.Wait();
 
 #endif  // V8_USE_PERFETTO
 
@@ -329,16 +330,16 @@ void TracingController::StopTracing() {
   }
 
 #ifdef V8_USE_PERFETTO
-  base::Semaphore stopped_{0};
-  tracing_session_->SetOnStopCallback([&stopped_]() { stopped_.Signal(); });
-  tracing_session_->Stop();
-  stopped_.Wait();
+  // base::Semaphore stopped_{0};
+  // tracing_session_->SetOnStopCallback([&stopped_]() { stopped_.Signal(); });
+  // tracing_session_->Stop();
+  // stopped_.Wait();
 
-  std::vector<char> trace = tracing_session_->ReadTraceBlocking();
-  json_listener_->ParseFromArray(trace);
-  if (listener_for_testing_) listener_for_testing_->ParseFromArray(trace);
+  // std::vector<char> trace = tracing_session_->ReadTraceBlocking();
+  // json_listener_->ParseFromArray(trace);
+  // if (listener_for_testing_) listener_for_testing_->ParseFromArray(trace);
 
-  json_listener_.reset();
+  // json_listener_.reset();
 
 #endif  // V8_USE_PERFETTO
 

@@ -4,6 +4,7 @@
 #include "tracing/agent.h"
 #include "perfetto/tracing/tracing.h"
 #include "uv.h"
+#include "node_mutex.h"
 
 #define NODE_PERFETTO_DEBUG(s) printf("[PERFETTO] " s "\n")
 
@@ -16,6 +17,7 @@ namespace internal {
  * The current tracing state.
  */
 enum PerfettoAgentTracingState {
+  UNINITIALIZED,
   STOPPED,
   STARTED,
   STOPPING
@@ -150,11 +152,13 @@ class PerfettoAgent : public AgentBase {
 
   /**
    * Start tracing with the given parameters.
+   * 
    */
   void Start(TracingOptions options);
 
   /**
-   * Explicitly stop tracing.
+   * Send a signal to stop tracing. Stopping happens asynchronously and traces
+   * may still be written to trace consumers.
    */
   void Stop();
  private:
@@ -165,9 +169,9 @@ class PerfettoAgent : public AgentBase {
   PerfettoAgent();
 
   /* The tracing state. */
-  internal::PerfettoAgentTracingState tracing_state_ = internal::STOPPED;
-  /* Tracing options. This is only valid when the tracing state is RUNNING. */
-  TracingOptions options_;
+  internal::PerfettoAgentTracingState tracing_state_ = internal::UNINITIALIZED;
+  Mutex tracing_state_mutex_;
+  ConditionVariable tracing_state_stop_pending_cond_;
   /* The underlying interface exposed by Perfetto for controlling tracing. */
   std::unique_ptr<perfetto::TracingSession> tracing_session_;
   /* All trace consumers added to this instance. */

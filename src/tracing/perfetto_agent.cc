@@ -6,6 +6,10 @@
 #include "perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "perfetto/trace/trace.pb.h"
 
+/**
+ * Data source for traces coming from Node.
+ * Macros should eventually be implemented with this.
+ */
 class NodeDataSource : public perfetto::DataSource<NodeDataSource> {
 };
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(NodeDataSource);
@@ -39,6 +43,19 @@ class CategoryManager {
   }
  private:
   v8::platform::tracing::TracingController controller_;
+};
+
+class V8PerfettoTracingController : public v8::platform::tracing::TracingController {
+ public:
+  V8PerfettoTracingController() : v8::platform::tracing::TracingController() {}
+
+  int64_t CurrentTimestampMicroseconds() override {
+    return uv_hrtime() / 1000;
+  }
+
+  int64_t CurrentCpuTimestampMicroseconds() override {
+    return DefaultTracingController::CurrentCpuTimestampMicroseconds();
+  }
 };
 
 class PerfettoTracingController : public v8::TracingController {
@@ -122,6 +139,12 @@ void TraceConsumerHandle::RemoveTraceConsumer() {
   }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/// PERFETTO ///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 PerfettoAgent::PerfettoAgent() {}
 
 void PerfettoAgent::Initialize() {
@@ -130,23 +153,30 @@ void PerfettoAgent::Initialize() {
   tracing_init_args.backends = perfetto::BackendType::kInProcessBackend;
   perfetto::Tracing::Initialize(tracing_init_args);
 
-  // Initialize a data source, as well as the TracingController instance that
-  // will write to this data source.
-
+  // Initialize a Perfetto data source.
   perfetto::DataSourceDescriptor descriptor;
-  descriptor.set_name("node_trace_events");
+  descriptor.set_name("node.trace_events");
   NodeDataSource::Register(descriptor);
 
-  tracing_controller_.reset(new PerfettoTracingController());
+  // Create the V8 tracing controller, which also initializes V8's data source.
+  auto tracing_controller = new V8PerfettoTracingController();
+  auto config = v8::platform::tracing::TraceConfig::CreateDefaultTraceConfig();
+  config->AddIncludedCategory("node");
+  config->AddIncludedCategory("node.async_hooks");
+  tracing_controller->Initialize(nullptr);
+  tracing_controller->StartTracing(config);
+  tracing_controller_.reset(tracing_controller);
 
-  // Note: Setup doesn't accept an FD. We need to start and write our own
-  // loop to consume trace data.
-
+  // Create a new tracing session.
   tracing_session_ = perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend);
 
+  // Create UV primitives.
   uv_loop_init(&tracing_loop_);
   uv_timer_init(&tracing_loop_, &timer_);
   timer_.data = this;
+
+  Mutex::ScopedLock lock(tracing_state_mutex_);
+  tracing_state_ = internal::STOPPED;
 }
 
 PerfettoAgent::~PerfettoAgent() {
@@ -187,67 +217,93 @@ void PerfettoAgent::RemoveTraceStateObserver(TraceStateObserver* observer) {
 }
 
 void PerfettoAgent::Start(TracingOptions options) {
-  if (tracing_state_ != internal::STOPPED) return;
+  {
+    Mutex::ScopedLock lock(tracing_state_mutex_);
+    while (tracing_state_ == internal::STOPPING) {
+      tracing_state_stop_pending_cond_.Wait(lock);
+    }
+    if (tracing_state_ == internal::STARTED) return;
+    tracing_state_ = internal::STARTED;
+  }
 
-  options_ = options;
-
+  // Using options.trace_duration_ms, set up and start the tracing session.
   perfetto::TraceConfig config;
   if (options.trace_duration_ms != 0) {
     config.set_duration_ms(options.trace_duration_ms);
   }
   config.set_write_into_file(false);
-  config.add_buffers()->set_size_kb(4096);
+  config.add_buffers()->set_size_kb(2048);
   {
     auto c = config.add_data_sources();
     auto c2 = c->mutable_config();
-    c2->set_name("node_trace_events");
+    c2->set_name("v8.trace_events");
   }
   tracing_session_->Setup(config);
   tracing_session_->SetOnStopCallback([=]() {
+    Mutex::ScopedLock lock(tracing_state_mutex_);
     tracing_state_ = internal::STOPPING;
   });
   tracing_session_->Start();
 
+  // Define a timer to consume traces that runs every options.write_period_ms
+  // milliseconds.
   uv_timer_start(&timer_, [](uv_timer_t* handle) {
     PerfettoAgent* agent = static_cast<PerfettoAgent*>(handle->data);
-    if (agent->tracing_state_ == internal::STOPPED) {
-      return;
-    }
+
+    // Assert that when the tracing state is STOPPED, the timer is stopped as
+    // well.
+    DCHECK(agent->tracing_state_ != internal::STOPPED);
+
+    // Read traces and call each consumer with trace data.
     std::vector<char> trace_data = agent->tracing_session_->ReadTraceBlocking();
     for (auto itr = agent->consumers_.begin(); itr != agent->consumers_.end(); itr++) {
       auto trace_writer = *itr;
       trace_writer->OnTrace(trace_data);
     }
+
+    // If a stop signal was received, stop the timer and inform each consumer
+    // that tracing has stopped.
+    Mutex::ScopedLock lock(agent->tracing_state_mutex_);
     if (agent->tracing_state_ == internal::STOPPING) {
-      uv_timer_stop(handle);
+      agent->tracing_state_stop_pending_cond_.Broadcast(lock);
       agent->tracing_state_ = internal::STOPPED;
+      uv_timer_stop(handle);
+      Mutex::ScopedUnlock unlock(lock);
       NODE_PERFETTO_DEBUG("Tracing Stopped");
+      for (auto itr = agent->observers_.begin(); false; itr++) {
+        (*itr)->OnTraceDisabled();
+      }
       for (auto itr = agent->consumers_.begin(); itr != agent->consumers_.end(); itr++) {
         (*itr)->OnTraceStopped();
       }
     }
-  }, 0, options_.write_period_ms);
+  }, 0, options.write_period_ms);
+  
+  // Run this timer on a new thread.
   uv_thread_create(&thread_, [](void* arg) {
     PerfettoAgent* agent = static_cast<PerfettoAgent*>(arg);
     uv_run(&agent->tracing_loop_, UV_RUN_DEFAULT);
   }, this);
-  
-  tracing_state_ = internal::STARTED;
 
   NODE_PERFETTO_DEBUG("Tracing Started");
 
+  // TODO(kjin): Investigate why this crashes if the continue condition isn't
+  // just "false".
   for (auto itr = observers_.begin(); false; itr++) {
     (*itr)->OnTraceEnabled();
   }
-
+  // Inform each consumer that tracing has started.
   for (auto itr = consumers_.begin(); itr != consumers_.end(); itr++) {
     (*itr)->OnTraceStarted();
   }
 }
 
 void PerfettoAgent::Stop() {
-  if (tracing_state_ != internal::STARTED) return;
-  tracing_state_ = internal::STOPPING;
+  {
+    Mutex::ScopedLock lock(tracing_state_mutex_);
+    if (tracing_state_ != internal::STARTED) return;
+    tracing_state_ = internal::STOPPING;
+  }
 
   NODE_PERFETTO_DEBUG("Tracing Stopping");
   tracing_session_->Stop();

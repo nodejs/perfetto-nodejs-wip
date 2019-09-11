@@ -78,10 +78,12 @@ class NodeTraceStateObserver : public tracing::TraceStateObserver {
 struct V8Platform {
 #if NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {
+    // [old tracing system]
     tracing_agent_ = std::make_unique<tracing::Agent>();
     tracing::PerfettoAgent::GetAgent().Initialize();
     trace_state_observer_ = std::make_unique<NodeTraceStateObserver>();
     tracing::PerfettoAgent::GetAgent().AddTraceStateObserver(trace_state_observer_.get());
+    // [old tracing system]
     tracing_file_writer_ = tracing_agent_->DefaultHandle();
     // Only start the tracing agent if we enabled any tracing categories.
     if (!per_process::cli_options->trace_event_categories.empty()) {
@@ -98,6 +100,7 @@ struct V8Platform {
     platform_->Shutdown();
     delete platform_;
     platform_ = nullptr;
+    // [old tracing system]
     // Destroy tracing after the platform (and platform threads) have been
     // stopped.
     tracing_agent_.reset(nullptr);
@@ -115,6 +118,7 @@ struct V8Platform {
   inline void StartTracingAgent() {
     // Attach a new NodeTraceWriter only if this function hasn't been called
     // before.
+    // [old tracing system]
     if (tracing_file_writer_.IsDefaultHandle()) {
       std::vector<std::string> categories =
           SplitString(per_process::cli_options->trace_event_categories, ',');
@@ -127,18 +131,20 @@ struct V8Platform {
                   per_process::cli_options->trace_event_file_pattern)),
           tracing::Agent::kUseDefaultCategories);
     }
-    tracing_perfetto_writer_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(std::make_unique<tracing::FileTraceConsumer>());
-    // tracing_perfetto_writer_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(
+    tracing_perfetto_writer_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(std::make_unique<tracing::BlockingTraceConsumer>());
+    // tracing_perfetto_writer_2_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(std::make_unique<tracing::StdoutTraceConsumer>());
+    // tracing_perfetto_writer_2_ = tracing::PerfettoAgent::GetAgent().AddTraceConsumer(
     //     std::make_unique<tracing::LegacyTraceConsumer>(
     //         std::unique_ptr<tracing::AsyncTraceWriter>(
     //             new tracing::NodeTraceWriter(per_process::cli_options->trace_event_file_pattern))));
     tracing::TracingOptions trace_options;
-    trace_options.write_period_ms = 2000;
+    trace_options.write_period_ms = 1000;
     trace_options.trace_duration_ms = 60000;
     tracing::PerfettoAgent::GetAgent().Start(trace_options);
   }
 
   inline void StopTracingAgent() {
+    // [old tracing system]
     tracing_file_writer_.reset();
     tracing::PerfettoAgent::GetAgent().Stop();
     // TODO(kjin): Should this be removed asynchronously?
@@ -158,6 +164,7 @@ struct V8Platform {
   // [old tracing system]
   tracing::AgentWriterHandle tracing_file_writer_;
   tracing::TraceConsumerHandle tracing_perfetto_writer_;
+  tracing::TraceConsumerHandle tracing_perfetto_writer_2_;
   NodePlatform* platform_;
 #else   // !NODE_USE_V8_PLATFORM
   inline void Initialize(int thread_pool_size) {}

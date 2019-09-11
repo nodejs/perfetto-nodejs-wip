@@ -1126,8 +1126,7 @@
             '<(V8_ROOT)/src/libplatform/tracing/trace-event-listener.h',
           ],
           'dependencies': [
-            '<(V8_ROOT)/third_party/perfetto:libperfetto',
-            '<(V8_ROOT)/third_party/perfetto/protos/perfetto/trace:lite',
+            '<(V8_ROOT)/../perfetto/gypfiles/perfetto.gyp:libperfetto',
           ],
         }],
       ],

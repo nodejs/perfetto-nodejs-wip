@@ -11,7 +11,9 @@ using v8::platform::tracing::TraceObject;
 namespace node {
 namespace tracing {
 
-/* Just print data to stdout */
+/**
+ * Prints useful data about the current trace data to the console.
+ */
 class StdoutTraceConsumer : public TraceConsumer {
   void OnTrace(const std::vector<char>& raw) override {
     // std::ofstream output;
@@ -24,17 +26,17 @@ class StdoutTraceConsumer : public TraceConsumer {
     perfetto::protos::Trace trace;
     trace.ParseFromArray(raw.data(), raw.size());
     printf(">>> Consumed: %s --- packet size %d\n", trace.GetTypeName().c_str(), trace.packet_size());
-    std::map<std::string, uint32_t> m;
+    std::map<uint64_t, uint32_t> m;
     for (auto i = 0; i < trace.packet_size(); i++) {
       auto packet = trace.packet(i);
       auto chrome_events = packet.chrome_events();
       auto events = chrome_events.trace_events();
       for (auto itr = events.pointer_begin(); itr != events.pointer_end(); itr++) {
-        m[(*itr)->name()]++;
+        m[(*itr)->process_id()]++;
       }
     }
     for (auto itr = m.begin(); itr != m.end(); itr++) {
-      printf(">> %s %d\n", itr->first.c_str(), itr->second);
+      printf(">> %d %d\n", itr->first, itr->second);
     }
   }
   
@@ -42,6 +44,9 @@ class StdoutTraceConsumer : public TraceConsumer {
   void OnTraceStopped() override {}
 };
 
+/**
+ * Writes Protobuf directly to a file.
+ */
 class FileTraceConsumer : public TraceConsumer {
   void OnTrace(const std::vector<char>& raw) override {
     std::ofstream output;
@@ -55,11 +60,34 @@ class FileTraceConsumer : public TraceConsumer {
   void OnTraceStopped() override {}
 };
 
+class BlockingTraceConsumer : public TraceConsumer {
+  void OnTrace(const std::vector<char>& raw) override {
+    static uint64_t a = 0;
+    {
+      perfetto::protos::Trace trace;
+      trace.ParseFromArray(raw.data(), raw.size());
+      a++;
+      printf(">>> %d Blocking for two seconds: %d packets, %d bytes\n", a, trace.packet_size(), raw.size());
+      sleep(2);
+    }
+    printf(">>> %d Blocking finished\n", a);
+  }
+  
+  void OnTraceStarted() override {}
+  void OnTraceStopped() override {}
+};
+
+/**
+ * Wraps an existing AsyncTraceWriter.
+ * Note: Once tracing is stopped, the AsyncTraceWriter is destroyed; in other
+ * words an instance of this class can't be re-used.
+ */
 class LegacyTraceConsumer : public TraceConsumer {
  public:
   LegacyTraceConsumer(std::unique_ptr<AsyncTraceWriter> trace_writer)
       : trace_writer_(std::move(trace_writer)) {
     controller_ = std::make_unique<v8::platform::tracing::TracingController>();
+    controller_->Initialize(nullptr);
     uv_loop_init(&tracing_loop_);
     trace_writer_->InitializeOnThread(&tracing_loop_);
     uv_thread_create(&thread_, [](void* arg) {
@@ -83,16 +111,16 @@ class LegacyTraceConsumer : public TraceConsumer {
             controller_->GetCategoryGroupEnabled(event->category_group_name().c_str());
         // auto args = event->args();
         // if (args.size() == 0) {
-          t.Initialize(
-            event->phase(),
-            category_group_ptr,
-            event->name().c_str(),
-            event->scope().c_str(),
-            event->id(),
-            event->bind_id(),
-            0, nullptr, nullptr, nullptr, nullptr,
-            event->flags(), event->timestamp(), event->thread_timestamp()
-          );
+        t.Initialize(
+          event->phase(),
+          category_group_ptr,
+          event->name().c_str(),
+          event->scope().c_str(),
+          event->id(),
+          event->bind_id(),
+          0, nullptr, nullptr, nullptr, nullptr,
+          event->flags(), event->timestamp(), event->thread_timestamp()
+        );
         // }
         trace_writer_->AppendTraceEvent(&t);
       }

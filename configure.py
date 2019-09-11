@@ -508,6 +508,11 @@ parser.add_option('--without-siphash',
     dest='without_siphash',
     help=optparse.SUPPRESS_HELP)
 
+parser.add_option('--without-perfetto',
+    action='store_true',
+    dest='without_perfetto',
+    help=optparse.SUPPRESS_HELP)
+
 # End dummy list.
 
 parser.add_option('--without-ssl',
@@ -973,7 +978,7 @@ def configure_node(o):
       cross_compiling and want_snapshots)
 
   if not options.without_node_snapshot:
-    o['variables']['node_use_node_snapshot'] = b(not cross_compiling)
+    o['variables']['node_use_node_snapshot'] = 'false'
   else:
     o['variables']['node_use_node_snapshot'] = 'false'
 
@@ -1173,6 +1178,7 @@ def configure_v8(o):
   o['variables']['v8_optimized_debug'] = 0 if options.v8_non_optimized_debug else 1
   o['variables']['v8_random_seed'] = 0  # Use a random seed for hash tables.
   o['variables']['v8_promise_internal_field_count'] = 1 # Add internal field to promises for async hooks.
+  o['variables']['v8_use_perfetto'] = 0 if options.without_perfetto else 1
   o['variables']['v8_use_siphash'] = 0 if options.without_siphash else 1
   o['variables']['v8_use_snapshot'] = 0 if options.without_snapshot else 1
   o['variables']['v8_trace_maps'] = 1 if options.trace_maps else 0

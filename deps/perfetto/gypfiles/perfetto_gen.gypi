@@ -103,6 +103,66 @@
       ]
     },
     {
+      "target_name": "protos_perfetto_trace_chrome_minimal_complete_lite",
+      "type": "<(library)",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_packet.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_packet.pb.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_common_lite#target",
+        "protos_perfetto_config_lite#target",
+        "protos_perfetto_trace_minimal_lite#target",
+        "protos_perfetto_trace_chrome_lite#target",
+        "protos_perfetto_trace_chrome_minimal_complete_lite_gen#target",
+        "protos_perfetto_trace_interned_data_lite#target",
+        "protos_perfetto_trace_track_event_lite#target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_chrome_zero",
+      "type": "<(library)",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_trace_chrome_zero_gen#target",
+        "protos_perfetto_trace_interned_data_zero#target",
+        "protos_perfetto_trace_track_event_zero#target",
+        "src_protozero_protozero#target"
+      ]
+    },
+    {
       "target_name": "include_perfetto_tracing_tracing_proxy",
       "type": "static_library",
       "toolsets": [
@@ -985,6 +1045,269 @@
       ]
     },
     {
+      "target_name": "protos_perfetto_common_lite_proxy",
+      "type": "static_library",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_common_lite_gen#target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_common_lite",
+      "type": "none",
+      "dependencies": [
+        "protos_perfetto_common_lite_proxy"
+      ],
+      "toolsets": [
+        "target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_chrome_minimal_complete_lite_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_packet.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host",
+        "protos_perfetto_common_lite#target",
+        "protos_perfetto_config_lite#target",
+        "protos_perfetto_trace_minimal_lite#target",
+        "protos_perfetto_trace_chrome_lite#target",
+        "protos_perfetto_trace_interned_data_lite#target",
+        "protos_perfetto_trace_track_event_lite#target"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_trace_chrome_minimal_complete_lite_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_packet.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_packet.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_packet.pb.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--cpp_out",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_packet.proto"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_chrome_zero_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host",
+        "protos_perfetto_trace_interned_data_zero#target",
+        "protos_perfetto_trace_track_event_zero#target",
+        "src_protozero_protozero#target",
+        "src_protozero_protoc_plugin_protozero_plugin#host"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_trace_chrome_zero_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_interned_data_zero_proxy",
+      "type": "static_library",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_trace_interned_data_zero_gen#target",
+        "protos_perfetto_trace_profiling_zero#target",
+        "protos_perfetto_trace_track_event_zero#target",
+        "src_protozero_protozero#target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_interned_data_zero",
+      "type": "none",
+      "dependencies": [
+        "protos_perfetto_trace_interned_data_zero_proxy"
+      ],
+      "toolsets": [
+        "target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_track_event_zero_proxy",
+      "type": "static_library",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_trace_track_event_zero_gen#target",
+        "src_protozero_protozero#target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_track_event_zero",
+      "type": "none",
+      "dependencies": [
+        "protos_perfetto_trace_track_event_zero_proxy"
+      ],
+      "toolsets": [
+        "target"
+      ]
+    },
+    {
+      "target_name": "src_protozero_protozero_proxy",
+      "type": "static_library",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/"
+      ],
+      "defines": [
+        "PERFETTO_IMPLEMENTATION"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/src/protozero/message.cc",
+        "<(root_relative_to_gypfile)/src/protozero/message_handle.cc",
+        "<(root_relative_to_gypfile)/src/protozero/proto_decoder.cc",
+        "<(root_relative_to_gypfile)/src/protozero/scattered_heap_buffer.cc",
+        "<(root_relative_to_gypfile)/src/protozero/scattered_stream_null_delegate.cc",
+        "<(root_relative_to_gypfile)/src/protozero/scattered_stream_writer.cc"
+      ],
+      "dependencies": [
+        "include_perfetto_base_base#target",
+        "include_perfetto_ext_base_base#target",
+        "include_perfetto_protozero_protozero#target"
+      ]
+    },
+    {
+      "target_name": "src_protozero_protozero",
+      "type": "none",
+      "dependencies": [
+        "src_protozero_protozero_proxy"
+      ],
+      "toolsets": [
+        "target"
+      ]
+    },
+    {
       "target_name": "include_perfetto_base_base_proxy",
       "type": "static_library",
       "toolsets": [
@@ -1349,54 +1672,6 @@
       ]
     },
     {
-      "target_name": "protos_perfetto_common_lite_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
-      ],
-      "sources": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.cc"
-      ],
-      "dependencies": [
-        "protos_perfetto_common_lite_gen#target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_common_lite",
-      "type": "none",
-      "dependencies": [
-        "protos_perfetto_common_lite_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
       "target_name": "protos_perfetto_trace_trusted_lite_proxy",
       "type": "static_library",
       "toolsets": [
@@ -1462,44 +1737,6 @@
       "type": "none",
       "dependencies": [
         "protos_perfetto_trace_perfetto_zero_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
-      "target_name": "src_protozero_protozero_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/"
-      ],
-      "defines": [
-        "PERFETTO_IMPLEMENTATION"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/src/protozero/message.cc",
-        "<(root_relative_to_gypfile)/src/protozero/message_handle.cc",
-        "<(root_relative_to_gypfile)/src/protozero/proto_decoder.cc",
-        "<(root_relative_to_gypfile)/src/protozero/scattered_heap_buffer.cc",
-        "<(root_relative_to_gypfile)/src/protozero/scattered_stream_null_delegate.cc",
-        "<(root_relative_to_gypfile)/src/protozero/scattered_stream_writer.cc"
-      ],
-      "dependencies": [
-        "include_perfetto_base_base#target",
-        "include_perfetto_ext_base_base#target",
-        "include_perfetto_protozero_protozero#target"
-      ]
-    },
-    {
-      "target_name": "src_protozero_protozero",
-      "type": "none",
-      "dependencies": [
-        "src_protozero_protozero_proxy"
       ],
       "toolsets": [
         "target"
@@ -2326,6 +2563,273 @@
       ]
     },
     {
+      "target_name": "protos_perfetto_common_lite_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_common_lite_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--cpp_out",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "src_protozero_protoc_plugin_protozero_plugin_proxy",
+      "type": "executable",
+      "toolsets": [
+        "host"
+      ],
+      "include_dirs": [
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/protos/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "PERFETTO_IMPLEMENTATION",
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/src/protozero/protoc_plugin/protozero_plugin.cc"
+      ],
+      "dependencies": [
+        "gn_protoc_lib#host"
+      ]
+    },
+    {
+      "target_name": "src_protozero_protoc_plugin_protozero_plugin",
+      "type": "none",
+      "dependencies": [
+        "src_protozero_protoc_plugin_protozero_plugin_proxy"
+      ],
+      "toolsets": [
+        "host"
+      ],
+      "actions": [
+        {
+          "action_name": "copy_as_expected_output",
+          "action": [
+            "cp",
+            "<@(_inputs)",
+            "<@(_outputs)"
+          ],
+          "inputs": [
+            "<@(PRODUCT_DIR)/src_protozero_protoc_plugin_protozero_plugin_proxy"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_interned_data_zero_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host",
+        "protos_perfetto_trace_profiling_zero#target",
+        "protos_perfetto_trace_track_event_zero#target",
+        "src_protozero_protozero#target",
+        "src_protozero_protoc_plugin_protozero_plugin#host"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_trace_interned_data_zero_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_profiling_zero_proxy",
+      "type": "static_library",
+      "toolsets": [
+        "target"
+      ],
+      "include_dirs": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
+        "<(root_relative_to_gypfile)/",
+        "<(root_relative_to_gypfile)/include/",
+        "<(root_relative_to_gypfile)/../protobuf/src"
+      ],
+      "defines": [
+        "GOOGLE_PROTOBUF_NO_RTTI",
+        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "PERFETTO_IMPLEMENTATION"
+      ],
+      "sources": [
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
+        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.cc"
+      ],
+      "dependencies": [
+        "protos_perfetto_trace_profiling_zero_gen#target",
+        "src_protozero_protozero#target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_profiling_zero",
+      "type": "none",
+      "dependencies": [
+        "protos_perfetto_trace_profiling_zero_proxy"
+      ],
+      "toolsets": [
+        "target"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_track_event_zero_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host",
+        "src_protozero_protozero#target",
+        "src_protozero_protoc_plugin_protozero_plugin#host"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_trace_track_event_zero_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
+          ]
+        }
+      ]
+    },
+    {
       "target_name": "protos_perfetto_config_zero_proxy",
       "type": "static_library",
       "toolsets": [
@@ -2498,48 +3002,6 @@
       "type": "none",
       "dependencies": [
         "protos_perfetto_trace_android_zero_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_chrome_zero_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "PERFETTO_IMPLEMENTATION"
-      ],
-      "sources": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.cc"
-      ],
-      "dependencies": [
-        "protos_perfetto_trace_chrome_zero_gen#target",
-        "protos_perfetto_trace_interned_data_zero#target",
-        "protos_perfetto_trace_track_event_zero#target",
-        "src_protozero_protozero#target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_chrome_zero",
-      "type": "none",
-      "dependencies": [
-        "protos_perfetto_trace_chrome_zero_proxy"
       ],
       "toolsets": [
         "target"
@@ -2721,44 +3183,6 @@
       ]
     },
     {
-      "target_name": "protos_perfetto_trace_interned_data_zero_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "PERFETTO_IMPLEMENTATION"
-      ],
-      "sources": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.cc"
-      ],
-      "dependencies": [
-        "protos_perfetto_trace_interned_data_zero_gen#target",
-        "protos_perfetto_trace_profiling_zero#target",
-        "protos_perfetto_trace_track_event_zero#target",
-        "src_protozero_protozero#target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_interned_data_zero",
-      "type": "none",
-      "dependencies": [
-        "protos_perfetto_trace_interned_data_zero_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
       "target_name": "protos_perfetto_trace_power_zero_proxy",
       "type": "static_library",
       "toolsets": [
@@ -2791,44 +3215,6 @@
       "type": "none",
       "dependencies": [
         "protos_perfetto_trace_power_zero_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_profiling_zero_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "PERFETTO_IMPLEMENTATION"
-      ],
-      "sources": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.cc"
-      ],
-      "dependencies": [
-        "protos_perfetto_trace_profiling_zero_gen#target",
-        "src_protozero_protozero#target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_profiling_zero",
-      "type": "none",
-      "dependencies": [
-        "protos_perfetto_trace_profiling_zero_proxy"
       ],
       "toolsets": [
         "target"
@@ -2904,50 +3290,6 @@
       "type": "none",
       "dependencies": [
         "protos_perfetto_trace_sys_stats_zero_proxy"
-      ],
-      "toolsets": [
-        "target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_track_event_zero_proxy",
-      "type": "static_library",
-      "toolsets": [
-        "target"
-      ],
-      "include_dirs": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/",
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "PERFETTO_IMPLEMENTATION"
-      ],
-      "sources": [
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.h",
-        "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.cc"
-      ],
-      "dependencies": [
-        "protos_perfetto_trace_track_event_zero_gen#target",
-        "src_protozero_protozero#target"
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_track_event_zero",
-      "type": "none",
-      "dependencies": [
-        "protos_perfetto_trace_track_event_zero_proxy"
       ],
       "toolsets": [
         "target"
@@ -3133,83 +3475,6 @@
       ]
     },
     {
-      "target_name": "protos_perfetto_common_lite_gen",
-      "type": "none",
-      "toolsets": [
-        "target"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
-      ],
-      "dependencies": [
-        "gn_protoc#host"
-      ],
-      "actions": [
-        {
-          "action_name": "protos_perfetto_common_lite_gen_action",
-          "inputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/android_log_constants.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/commit_data_request.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/data_source_descriptor.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/descriptor.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/gpu_counter_descriptor.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/observable_events.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/sys_stats_counters.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/tracing_service_state.pb.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/common/trace_stats.pb.cc"
-          ],
-          "action": [
-            "python",
-            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
-            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
-            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
-            "--proto_path",
-            "<(root_relative_to_gypfile)/protos",
-            "--cpp_out",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/android_log_constants.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/commit_data_request.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/data_source_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/gpu_counter_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/observable_events.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/sys_stats_counters.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/tracing_service_state.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
-          ]
-        }
-      ]
-    },
-    {
       "target_name": "protos_perfetto_trace_trusted_lite_gen",
       "type": "none",
       "toolsets": [
@@ -3285,6 +3550,61 @@
             "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
             "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/perfetto/perfetto_metatrace.proto"
+          ]
+        }
+      ]
+    },
+    {
+      "target_name": "gn_protoc_lib",
+      "type": "none",
+      "toolsets": [
+        "host"
+      ],
+      "dependencies": [
+        "protobuf.gyp:buildtools_protoc_lib#host"
+      ]
+    },
+    {
+      "target_name": "protos_perfetto_trace_profiling_zero_gen",
+      "type": "none",
+      "toolsets": [
+        "target"
+      ],
+      "sources": [
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
+        "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
+      ],
+      "dependencies": [
+        "gn_protoc#host",
+        "src_protozero_protozero#target",
+        "src_protozero_protoc_plugin_protozero_plugin#host"
+      ],
+      "actions": [
+        {
+          "action_name": "protos_perfetto_trace_profiling_zero_gen_action",
+          "inputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
+            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
+          ],
+          "outputs": [
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
+            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.cc"
+          ],
+          "action": [
+            "python",
+            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
+            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
+            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
+            "--proto_path",
+            "<(root_relative_to_gypfile)/protos",
+            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
+            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
+            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
           ]
         }
       ]
@@ -3443,56 +3763,6 @@
       ]
     },
     {
-      "target_name": "src_protozero_protoc_plugin_protozero_plugin_proxy",
-      "type": "executable",
-      "toolsets": [
-        "host"
-      ],
-      "include_dirs": [
-        "<(root_relative_to_gypfile)/",
-        "<(root_relative_to_gypfile)/include/",
-        "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/gen/protos/",
-        "<(root_relative_to_gypfile)/../protobuf/src"
-      ],
-      "defines": [
-        "PERFETTO_IMPLEMENTATION",
-        "GOOGLE_PROTOBUF_NO_RTTI",
-        "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/src/protozero/protoc_plugin/protozero_plugin.cc"
-      ],
-      "dependencies": [
-        "gn_protoc_lib#host"
-      ]
-    },
-    {
-      "target_name": "src_protozero_protoc_plugin_protozero_plugin",
-      "type": "none",
-      "dependencies": [
-        "src_protozero_protoc_plugin_protozero_plugin_proxy"
-      ],
-      "toolsets": [
-        "host"
-      ],
-      "actions": [
-        {
-          "action_name": "copy_as_expected_output",
-          "action": [
-            "cp",
-            "<@(_inputs)",
-            "<@(_outputs)"
-          ],
-          "inputs": [
-            "<@(PRODUCT_DIR)/src_protozero_protoc_plugin_protozero_plugin_proxy"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin"
-          ]
-        }
-      ]
-    },
-    {
       "target_name": "protos_perfetto_trace_android_zero_gen",
       "type": "none",
       "toolsets": [
@@ -3534,58 +3804,6 @@
             "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/android/android_log.proto",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/android/packages_list.proto"
-          ]
-        }
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_chrome_zero_gen",
-      "type": "none",
-      "toolsets": [
-        "target"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
-      ],
-      "dependencies": [
-        "gn_protoc#host",
-        "protos_perfetto_trace_interned_data_zero#target",
-        "protos_perfetto_trace_track_event_zero#target",
-        "src_protozero_protozero#target",
-        "src_protozero_protoc_plugin_protozero_plugin#host"
-      ],
-      "actions": [
-        {
-          "action_name": "protos_perfetto_trace_chrome_zero_gen_action",
-          "inputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/chrome/chrome_metadata.pbzero.cc"
-          ],
-          "action": [
-            "python",
-            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
-            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
-            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
-            "--proto_path",
-            "<(root_relative_to_gypfile)/protos",
-            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_trace_event.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/chrome/chrome_metadata.proto"
           ]
         }
       ]
@@ -3877,48 +4095,6 @@
       ]
     },
     {
-      "target_name": "protos_perfetto_trace_interned_data_zero_gen",
-      "type": "none",
-      "toolsets": [
-        "target"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
-      ],
-      "dependencies": [
-        "gn_protoc#host",
-        "protos_perfetto_trace_profiling_zero#target",
-        "protos_perfetto_trace_track_event_zero#target",
-        "src_protozero_protozero#target",
-        "src_protozero_protoc_plugin_protozero_plugin#host"
-      ],
-      "actions": [
-        {
-          "action_name": "protos_perfetto_trace_interned_data_zero_gen_action",
-          "inputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/interned_data/interned_data.pbzero.cc"
-          ],
-          "action": [
-            "python",
-            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
-            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
-            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
-            "--proto_path",
-            "<(root_relative_to_gypfile)/protos",
-            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/interned_data/interned_data.proto"
-          ]
-        }
-      ]
-    },
-    {
       "target_name": "protos_perfetto_trace_power_zero_gen",
       "type": "none",
       "toolsets": [
@@ -3959,51 +4135,6 @@
             "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/power/battery_counters.proto",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/power/power_rails.proto"
-          ]
-        }
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_profiling_zero_gen",
-      "type": "none",
-      "toolsets": [
-        "target"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
-      ],
-      "dependencies": [
-        "gn_protoc#host",
-        "src_protozero_protozero#target",
-        "src_protozero_protoc_plugin_protozero_plugin#host"
-      ],
-      "actions": [
-        {
-          "action_name": "protos_perfetto_trace_profiling_zero_gen_action",
-          "inputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/profiling/profile_packet.pbzero.cc"
-          ],
-          "action": [
-            "python",
-            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
-            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
-            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
-            "--proto_path",
-            "<(root_relative_to_gypfile)/protos",
-            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_common.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/profiling/profile_packet.proto"
           ]
         }
       ]
@@ -4090,66 +4221,6 @@
             "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
             "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
             "<(root_relative_to_gypfile)/protos/perfetto/trace/sys_stats/sys_stats.proto"
-          ]
-        }
-      ]
-    },
-    {
-      "target_name": "protos_perfetto_trace_track_event_zero_gen",
-      "type": "none",
-      "toolsets": [
-        "target"
-      ],
-      "sources": [
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
-        "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
-      ],
-      "dependencies": [
-        "gn_protoc#host",
-        "src_protozero_protozero#target",
-        "src_protozero_protoc_plugin_protozero_plugin#host"
-      ],
-      "actions": [
-        {
-          "action_name": "protos_perfetto_trace_track_event_zero_gen_action",
-          "inputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protoc",
-            "<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
-          ],
-          "outputs": [
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/process_descriptor.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.h",
-            "<(SHARED_INTERMEDIATE_DIR)/gen/protos/perfetto/trace/track_event/track_event.pbzero.cc"
-          ],
-          "action": [
-            "python",
-            "<(root_relative_to_gypfile)/gn/standalone/build_tool_wrapper.py",
-            "<(root_relative_to_gypfile)/./gn/standalone/protoc.py",
-            "<(SHARED_INTERMEDIATE_DIR)/./gcc_like_host/protoc",
-            "--proto_path",
-            "<(root_relative_to_gypfile)/protos",
-            "--plugin=protoc-gen-plugin=<(SHARED_INTERMEDIATE_DIR)/gcc_like_host/protozero_plugin",
-            "--plugin_out=wrapper_namespace=pbzero:<(SHARED_INTERMEDIATE_DIR)/gen/protos",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/debug_annotation.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/process_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/task_execution.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/thread_descriptor.proto",
-            "<(root_relative_to_gypfile)/protos/perfetto/trace/track_event/track_event.proto"
           ]
         }
       ]
@@ -4319,16 +4390,6 @@
             "<(root_relative_to_gypfile)/protos/perfetto/common/trace_stats.proto"
           ]
         }
-      ]
-    },
-    {
-      "target_name": "gn_protoc_lib",
-      "type": "none",
-      "toolsets": [
-        "host"
-      ],
-      "dependencies": [
-        "protobuf.gyp:buildtools_protoc_lib#host"
       ]
     }
   ]
